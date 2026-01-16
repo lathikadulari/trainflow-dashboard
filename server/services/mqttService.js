@@ -9,6 +9,90 @@ let trainData = {};
 // Callback for when messages are received
 let messageCallback = null;
 
+// ESP32 heartbeat tracking
+let lastEsp32DataTime = 0;
+const ESP32_TIMEOUT_MS = 5000; // 5 seconds timeout
+
+// Check if ESP32 is online (received data within timeout)
+const getEsp32Status = () => {
+    if (lastEsp32DataTime === 0) return 'offline';
+    const timeSinceLastData = Date.now() - lastEsp32DataTime;
+    return timeSinceLastData < ESP32_TIMEOUT_MS ? 'online' : 'offline';
+};
+
+// Sensor data buffers for FFT computation
+const sensorBuffer = {
+    sensorA: [],
+    sensorB: []
+};
+const maxBufferSize = 512;
+const fftWindowSize = 256;
+
+// DFT computation (same algorithm as sensorSimulator)
+const computeFFT = (signal, sampleRate = 50) => {
+    const N = signal.length;
+    if (N < 16) return [];
+
+    // Pad to power of 2
+    const paddedLength = Math.pow(2, Math.ceil(Math.log2(N)));
+    const padded = [...signal];
+    while (padded.length < paddedLength) padded.push(0);
+
+    const results = [];
+
+    // DFT computation
+    for (let k = 0; k < paddedLength / 2; k++) {
+        let realSum = 0, imagSum = 0;
+
+        for (let n = 0; n < paddedLength; n++) {
+            const angle = (2 * Math.PI * k * n) / paddedLength;
+            realSum += padded[n] * Math.cos(angle);
+            imagSum -= padded[n] * Math.sin(angle);
+        }
+
+        const magnitude = Math.sqrt(realSum * realSum + imagSum * imagSum) / paddedLength;
+        const frequency = (k * sampleRate) / paddedLength;
+
+        // Filter to 10-250 Hz range (relevant for train vibration)
+        if (frequency >= 10 && frequency <= 250) {
+            results.push({ frequency: Math.round(frequency), magnitude });
+        }
+    }
+
+    return results;
+};
+
+// Compute FFT for all axes
+const computeAllFFT = () => {
+    if (sensorBuffer.sensorA.length < fftWindowSize) return null;
+
+    const extractAxis = (data, axis) => data.slice(-fftWindowSize).map(d => d[axis] || 0);
+
+    // Check for significant signal
+    const windowA = sensorBuffer.sensorA.slice(-fftWindowSize);
+    const windowB = sensorBuffer.sensorB.slice(-fftWindowSize);
+    const maxMagnitudeA = Math.max(...windowA.map(d => Math.abs(d.magnitude || 0)));
+    const maxMagnitudeB = Math.max(...windowB.map(d => Math.abs(d.magnitude || 0)));
+
+    const signalThreshold = 1500;
+
+    const computeIfSignificant = (data, maxMag) => {
+        if (maxMag < signalThreshold) {
+            return { x: [], y: [], z: [] };
+        }
+        return {
+            x: computeFFT(extractAxis(data, 'x')),
+            y: computeFFT(extractAxis(data, 'y')),
+            z: computeFFT(extractAxis(data, 'z')),
+        };
+    };
+
+    return {
+        sensorA: computeIfSignificant(sensorBuffer.sensorA, maxMagnitudeA),
+        sensorB: computeIfSignificant(sensorBuffer.sensorB, maxMagnitudeB),
+    };
+};
+
 const connectMQTT = () => {
     return new Promise((resolve, reject) => {
         // HiveMQ Cloud connection options - loaded inside function to ensure env vars are available
@@ -60,7 +144,6 @@ const connectMQTT = () => {
 
         client.on('message', (topic, message) => {
             const messageStr = message.toString();
-            console.log(`MQTT Message received - Topic: ${topic}, Message: ${messageStr}`);
 
             // Parse and store train data
             try {
@@ -69,6 +152,21 @@ const connectMQTT = () => {
                     data: data,
                     timestamp: new Date().toISOString()
                 };
+
+                // Buffer sensor data for FFT computation
+                if (topic === 'trainflow/sensor/A' && data) {
+                    lastEsp32DataTime = Date.now(); // Update heartbeat
+                    sensorBuffer.sensorA.push(data);
+                    if (sensorBuffer.sensorA.length > maxBufferSize) {
+                        sensorBuffer.sensorA.shift();
+                    }
+                } else if (topic === 'trainflow/sensor/B' && data) {
+                    lastEsp32DataTime = Date.now(); // Update heartbeat
+                    sensorBuffer.sensorB.push(data);
+                    if (sensorBuffer.sensorB.length > maxBufferSize) {
+                        sensorBuffer.sensorB.shift();
+                    }
+                }
 
                 // Call the message callback if set
                 if (messageCallback) {
@@ -154,5 +252,7 @@ module.exports = {
     setMessageCallback,
     getTrainData,
     getConnectionStatus,
+    getEsp32Status,
+    computeAllFFT,
     disconnect
 };

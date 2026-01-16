@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { publishMessage, subscribeToTopic, getTrainData, getConnectionStatus } = require('../services/mqttService');
+const { publishMessage, subscribeToTopic, getTrainData, getConnectionStatus, computeAllFFT } = require('../services/mqttService');
 
 // @desc    Get MQTT connection status
 // @route   GET /api/mqtt/status
@@ -17,6 +17,18 @@ router.get('/status', (req, res) => {
 // @access  Public
 router.get('/trains', (req, res) => {
     res.json(getTrainData());
+});
+
+// @desc    Get FFT computed from ESP32 sensor data
+// @route   GET /api/mqtt/fft
+// @access  Public
+router.get('/fft', (req, res) => {
+    const fftData = computeAllFFT();
+    if (fftData) {
+        res.json({ success: true, data: fftData });
+    } else {
+        res.json({ success: false, message: 'Not enough data for FFT computation' });
+    }
 });
 
 // @desc    Publish a message to a topic

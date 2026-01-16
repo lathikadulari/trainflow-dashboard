@@ -106,23 +106,37 @@ class SensorSimulator extends EventEmitter {
     }
 
     // Compute FFT for all axes of both sensors
+    // Only compute FFT when signal is above noise threshold (like a real DSP system)
     computeAllFFT() {
         const { sensorA, sensorB } = this.dataBuffer;
         if (sensorA.length < this.fftWindowSize) return null;
 
+        // Check if there's a significant signal in the FFT window using MAX (not average)
+        const windowA = sensorA.slice(-this.fftWindowSize);
+        const windowB = sensorB.slice(-this.fftWindowSize);
+        const maxMagnitudeA = Math.max(...windowA.map(d => Math.abs(d.magnitude || 0)));
+        const maxMagnitudeB = Math.max(...windowB.map(d => Math.abs(d.magnitude || 0)));
+
+        // Signal threshold - show FFT if ANY sample in window exceeds baseline noise
+        const signalThreshold = 1500; // Lowered to catch signal earlier
+
         const extractAxis = (data, axis) => data.slice(-this.fftWindowSize).map(d => d[axis]);
 
-        return {
-            sensorA: {
-                x: this.computeFFT(extractAxis(sensorA, 'x'), this.config.sampleRate),
-                y: this.computeFFT(extractAxis(sensorA, 'y'), this.config.sampleRate),
-                z: this.computeFFT(extractAxis(sensorA, 'z'), this.config.sampleRate),
-            },
-            sensorB: {
-                x: this.computeFFT(extractAxis(sensorB, 'x'), this.config.sampleRate),
-                y: this.computeFFT(extractAxis(sensorB, 'y'), this.config.sampleRate),
-                z: this.computeFFT(extractAxis(sensorB, 'z'), this.config.sampleRate),
+        // Return empty for sensors with no significant signal
+        const computeIfSignificant = (data, maxMag) => {
+            if (maxMag < signalThreshold) {
+                return { x: [], y: [], z: [] }; // No significant signal - return empty
             }
+            return {
+                x: this.computeFFT(extractAxis(data, 'x'), this.config.sampleRate),
+                y: this.computeFFT(extractAxis(data, 'y'), this.config.sampleRate),
+                z: this.computeFFT(extractAxis(data, 'z'), this.config.sampleRate),
+            };
+        };
+
+        return {
+            sensorA: computeIfSignificant(sensorA, maxMagnitudeA),
+            sensorB: computeIfSignificant(sensorB, maxMagnitudeB),
         };
     }
 
