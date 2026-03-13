@@ -2,10 +2,8 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Play, Square, Train, ArrowRight, ArrowLeft, Cpu, Activity, ZoomIn, ZoomOut, Maximize2, X } from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, AreaChart, Area, ResponsiveContainer } from 'recharts';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Slider } from '@/components/ui/slider';
+import { Play, Square, Train, ArrowRight, ArrowLeft, Cpu, Activity, ZoomIn, ZoomOut, Maximize, X as CloseIcon } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, AreaChart, Area, ResponsiveContainer, Brush, Tooltip, ReferenceArea } from 'recharts';
 
 interface VoltageData {
     x: number;
@@ -39,23 +37,7 @@ interface FFTData {
     sensorB: { x: FFTPoint[]; y: FFTPoint[]; z: FFTPoint[] };
 }
 
-interface ExpandedChartInfo {
-    sensor: 'A' | 'B';
-    axis: 'x' | 'y' | 'z';
-    type: 'time' | 'fft';
-}
-
-// Y-axis scale presets for viewing small signals
-const yAxisPresets = [
-    { label: 'Auto', value: null },
-    { label: '±5k', value: [-5000, 5000] },
-    { label: '±10k', value: [-10000, 10000] },
-    { label: '±20k', value: [-20000, 20000] },
-    { label: '±50k', value: [-50000, 50000] },
-    { label: '±70k', value: [-20000, 70000] },
-];
-
-const API_URL = 'http://localhost:5001/api';
+const API_URL = 'http://localhost:5000/api';
 
 // Axis configuration for consistent styling
 const axisConfig = {
@@ -69,7 +51,465 @@ const sensorConfig = {
     B: { color: '#d946ef', name: 'Sensor B', borderColor: 'border-fuchsia-500/30' },
 };
 
-const SensorSimulation = () => {
+
+// ═══════════════════════════════════════════════════════════════════
+// MODULE-SCOPE COMPONENTS — stable identity prevents React remount
+// ═══════════════════════════════════════════════════════════════════
+
+const VoltageBar = React.memo(({ voltage, color }: { voltage: number; color: string }) => {
+    const percentage = (voltage / 3.3) * 100;
+    return (
+        <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+            <div
+                className="h-full transition-all duration-100"
+                style={{ width: `${percentage}%`, backgroundColor: color }}
+            />
+        </div>
+    );
+});
+
+const VISIBLE_WINDOW = 70; // ~1.4 seconds at 50Hz — fewer points = smoother rendering
+
+const TimeChart = React.memo(({ data, axis, dataSource, sensor, onExpand }: {
+    data: SensorData[]; axis: 'x' | 'y' | 'z'; dataSource: 'simulation' | 'esp32'; sensor: 'A' | 'B';
+    onExpand: (info: { sensor: 'A' | 'B'; axis: 'x' | 'y' | 'z'; type: 'time' | 'fft'; data: any[] }) => void;
+}) => {
+    const config = axisConfig[axis];
+
+    // Show latest VISIBLE_WINDOW data points — raw data, no processing
+    const timeData = useMemo(() => {
+        const windowed = data.slice(-VISIBLE_WINDOW);
+        return windowed.map((d, i) => ({
+            time: i * 20, // 20ms per sample at 50Hz
+            amplitude: d[axis]
+        }));
+    }, [data, axis]);
+
+    if (data.length < 2) {
+        return (
+            <div className="h-[100px] flex items-center justify-center text-gray-500 text-xs">
+                Waiting for data...
+            </div>
+        );
+    }
+
+    const handleClick = () => {
+        onExpand({ sensor, axis, type: 'time', data: timeData });
+    };
+
+    return (
+        <div className="w-full cursor-pointer" onClick={handleClick} title="Click to expand & zoom">
+            <LineChart width={580} height={130} data={timeData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <XAxis dataKey="time" stroke="#666" fontSize={9} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}s`} />
+                <YAxis stroke="#666" fontSize={9} domain={['auto', 'auto']} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}g`} />
+                <Line type="monotone" dataKey="amplitude" stroke={config.color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+            </LineChart>
+            <div className="text-center text-[9px] text-gray-600 mt-0.5">
+                🔍 Click to expand & zoom
+            </div>
+        </div>
+    );
+});
+
+const FFTChart = React.memo(({ data, color, sensor, axis, onExpand }: {
+    data: FFTPoint[] | undefined; color: string; sensor: 'A' | 'B'; axis: 'x' | 'y' | 'z';
+    onExpand: (info: { sensor: 'A' | 'B'; axis: 'x' | 'y' | 'z'; type: 'time' | 'fft'; data: any[] }) => void;
+}) => {
+    const chartData = useMemo(() => data || [], [data]);
+
+    if (!chartData || chartData.length === 0) {
+        return (
+            <div className="h-[80px] flex items-center justify-center text-gray-500 text-xs">
+                Waiting for DSP PIC data...
+            </div>
+        );
+    }
+
+    const handleClick = () => {
+        onExpand({
+            sensor,
+            axis,
+            type: 'fft',
+            data: [...chartData]
+        });
+    };
+
+    return (
+        <div className="w-full cursor-pointer" onClick={handleClick} title="Click to expand & zoom">
+            <AreaChart width={450} height={80} data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <XAxis dataKey="frequency" stroke="#666" fontSize={8} tickFormatter={(v: number) => `${v}`} />
+                <YAxis stroke="#666" fontSize={8} domain={[0, 'auto']} />
+                <Area type="monotone" dataKey="magnitude" stroke={color} fill={color} fillOpacity={0.3} isAnimationActive={false} />
+            </AreaChart>
+        </div>
+    );
+});
+
+const SensorPanel = React.memo(({ sensor, data, voltage, fft, dataSource, onExpand }: {
+    sensor: 'A' | 'B';
+    data: SensorData[];
+    voltage: VoltageData;
+    fft: { x: FFTPoint[]; y: FFTPoint[]; z: FFTPoint[] } | undefined;
+    dataSource: 'simulation' | 'esp32';
+    onExpand: (info: { sensor: 'A' | 'B'; axis: 'x' | 'y' | 'z'; type: 'time' | 'fft'; data: any[] }) => void;
+}) => {
+    const config = sensorConfig[sensor];
+    return (
+        <div className={`space-y-3 p-3 rounded-xl border ${config.borderColor} bg-gradient-to-br from-gray-900/50 to-gray-800/30`}>
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4" style={{ color: config.color }} />
+                    <span className="font-semibold text-sm" style={{ color: config.color }}>{config.name}</span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">ADXL335</Badge>
+                </div>
+                <span className="text-[10px] text-gray-500">Click any chart to zoom</span>
+            </div>
+
+            <Card className="bg-[#0d1321] border-gray-700/50">
+                <CardContent className="p-2">
+                    <div className="text-[10px] text-gray-400 mb-1.5 flex items-center gap-1">
+                        <Cpu className="w-3 h-3" /> Analog Output (0-3.3V)
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                        {(['x', 'y', 'z'] as const).map((axis) => (
+                            <div key={axis} className="space-y-1">
+                                <div className="flex justify-between text-[10px]">
+                                    <span style={{ color: axisConfig[axis].color }}>{axis.toUpperCase()}</span>
+                                    <span className="text-gray-300 font-mono">{voltage[axis].toFixed(3)}V</span>
+                                </div>
+                                <VoltageBar voltage={voltage[axis]} color={axisConfig[axis].color} />
+                            </div>
+                        ))}
+                    </div>
+                </CardContent>
+            </Card>
+
+            {(['x', 'y', 'z'] as const).map((axis) => (
+                <Card key={axis} className="bg-[#16213e] border-0">
+                    <CardHeader className="py-1.5 px-3">
+                        <CardTitle className="text-xs" style={{ color: axisConfig[axis].color }}>
+                            {axisConfig[axis].name} - Time Domain (Amplitude vs Time)
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-1.5">
+                        <TimeChart data={data} axis={axis} dataSource={dataSource} sensor={sensor} onExpand={onExpand} />
+                    </CardContent>
+                </Card>
+            ))}
+
+            <Card className="bg-[#1a1a2e] border-0">
+                <CardHeader className="py-1.5 px-3">
+                    <div className="flex items-center gap-2">
+                        <Cpu className="w-3 h-3 text-purple-400" />
+                        <CardTitle className="text-xs text-purple-400">DSP PIC FFT Results (Frequency Domain)</CardTitle>
+                    </div>
+                </CardHeader>
+                <CardContent className="p-2 space-y-2">
+                    {(['x', 'y', 'z'] as const).map((axis) => (
+                        <div key={axis}>
+                            <div className="text-[10px] mb-1" style={{ color: axisConfig[axis].color }}>
+                                {axisConfig[axis].name} FFT
+                            </div>
+                            <FFTChart data={fft?.[axis]} color={axisConfig[axis].color} sensor={sensor} axis={axis} onExpand={onExpand} />
+                        </div>
+                    ))}
+                    <div className="text-center text-[9px] text-gray-500">Frequency (Hz)</div>
+                </CardContent>
+            </Card>
+        </div>
+    );
+});
+
+export interface SensorSimulationProps {
+    isEmbedded?: boolean;
+}
+
+// Module Level: Expanded Zoom Modal with 2D Drag-to-Zoom
+const ExpandedChartModal = React.memo(({ expandedChart, onClose, sensorAData, sensorBData, fftData }: any) => {
+    const { sensor, axis, type } = expandedChart;
+    const color = axisConfig[axis].color;
+    const sConfig = sensorConfig[sensor];
+    const yKey = type === 'time' ? 'amplitude' : 'magnitude';
+    const xKey = type === 'time' ? 'time' : 'frequency';
+
+    const MODAL_SAMPLE_RATE = 50;
+    const MODAL_WINDOW = 150; // Show last ~3 seconds in expanded view
+
+    const [modalPaused, setModalPaused] = useState(false);
+    const pausedDataRef = useRef<any[] | null>(null);
+
+    // Zoom State
+    const [zoomDomainX, setZoomDomainX] = useState<[number, number] | null>(null);
+    const [zoomDomainY, setZoomDomainY] = useState<[number, number] | null>(null);
+    const [refAreaLeft, setRefAreaLeft] = useState<number | null>(null);
+    const [refAreaRight, setRefAreaRight] = useState<number | null>(null);
+
+    // Manual Scale State (live and paused)
+    const [zoomFactorX, setZoomFactorX] = useState<number>(1);
+    const [zoomFactorY, setZoomFactorY] = useState<number>(1);
+
+    // Get live data — raw, no processing
+    const rawData = sensor === 'A' ? sensorAData : sensorBData;
+    const liveChartData = useMemo(() => {
+        if (type === 'time') {
+            const windowed = rawData.slice(-MODAL_WINDOW);
+            return windowed.map((d: any, i: number) => ({
+                time: i * 20,
+                amplitude: d[axis]
+            }));
+        }
+        return fftData ? (sensor === 'A' ? fftData.sensorA : fftData.sensorB)?.[axis] || [] : [];
+    }, [rawData, fftData, type, sensor, axis]);
+
+    const baseData = (modalPaused && pausedDataRef.current) ? pausedDataRef.current : liveChartData;
+
+    // Apply manual X zoom (show fewer points from the end if time domain)
+    const chartData = useMemo(() => {
+        if (zoomFactorX <= 1) return baseData;
+        const numPoints = Math.max(10, Math.floor(baseData.length / zoomFactorX));
+        return baseData.slice(-numPoints);
+    }, [baseData, zoomFactorX]);
+
+    // Default Domains based on visible data
+    const values = chartData.map((d: any) => d[yKey]);
+    const minVal = values.length > 0 ? Math.min(...values) : -1000;
+    const maxVal = values.length > 0 ? Math.max(...values) : 1000;
+    const padding = Math.max(Math.abs(maxVal - minVal) * 0.15, 50);
+
+    // Auto-calculating default Y Domain with Y-Zoom Factor applied
+    const defaultYDomain = useMemo(() => {
+        const center = (maxVal + minVal) / 2;
+        const range = (maxVal - minVal + padding * 2) / zoomFactorY;
+        return [center - range / 2, center + range / 2] as [number, number];
+    }, [maxVal, minVal, padding, zoomFactorY]);
+
+    // For time domain, X is min/max time. For FFT, X is 0 to max frequency.
+    const defaultXDomain = chartData.length > 0 ? [chartData[0][xKey], chartData[chartData.length - 1][xKey]] as [number, number] : ['dataMin', 'dataMax'];
+
+    const activeXDomain = zoomDomainX || defaultXDomain;
+    const activeYDomain = zoomDomainY || defaultYDomain;
+
+    const togglePause = () => {
+        if (!modalPaused) {
+            pausedDataRef.current = [...liveChartData];
+            setModalPaused(true);
+        } else {
+            pausedDataRef.current = null;
+            setModalPaused(false);
+            zoomOut(); // Reset zoom when returning to live mode
+        }
+    };
+
+    const zoomOut = () => {
+        setZoomDomainX(null);
+        setZoomDomainY(null);
+        setRefAreaLeft(null);
+        setRefAreaRight(null);
+        setZoomFactorX(1);
+        setZoomFactorY(1);
+    };
+
+    const onChartMouseDown = (e: any) => {
+        if (!e || !modalPaused) return; // Only allow drag-to-zoom when paused!
+        setRefAreaLeft(e.activeLabel);
+    };
+
+    const onChartMouseMove = (e: any) => {
+        if (!e || refAreaLeft === null || !modalPaused) return;
+        setRefAreaRight(e.activeLabel);
+    };
+
+    const onChartMouseUp = () => {
+        if (!modalPaused || refAreaLeft === null || refAreaRight === null) {
+            setRefAreaLeft(null);
+            setRefAreaRight(null);
+            return;
+        }
+
+        // Handle drawing backwards
+        let [left, right] = [refAreaLeft, refAreaRight];
+        if (left > right) [left, right] = [right, left];
+
+        if (left === right || left === undefined || right === undefined) {
+            zoomOut();
+            return;
+        }
+
+        // Apply Zoom Domains
+        setZoomDomainX([left, right]);
+
+        // Let's filter data within domain to find the new Y boundaries
+        const dataInZoom = chartData.filter((d: any) => d[xKey] >= left && d[xKey] <= right);
+        const yValsInZoom = dataInZoom.map((d: any) => d[yKey]);
+
+        if (yValsInZoom.length > 0) {
+            const zMin = Math.min(...yValsInZoom);
+            const zMax = Math.max(...yValsInZoom);
+            const zPadding = Math.max(Math.abs(zMax - zMin) * 0.1, 10);
+            setZoomDomainY([zMin - zPadding, zMax + zPadding]);
+        }
+
+        setRefAreaLeft(null);
+        setRefAreaRight(null);
+    };
+
+    return (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
+            <div className="bg-[#0d1321] border border-gray-700 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+                {/* Header */}
+                <div className="flex flex-wrap items-center justify-between p-4 border-b border-gray-700/50 bg-[#16213e] gap-4">
+                    <div className="flex items-center gap-3">
+                        <Activity className="w-5 h-5" style={{ color: sConfig.color }} />
+                        <span className="font-semibold" style={{ color: sConfig.color }}>{sConfig.name}</span>
+                        <span className="text-sm text-gray-400">•</span>
+                        <span className="font-medium" style={{ color }}>
+                            {axisConfig[axis].name} — {type === 'time' ? 'Time Domain' : 'FFT'}
+                        </span>
+                        {modalPaused ? (
+                            <Badge className="bg-yellow-600/20 text-yellow-400 border-yellow-600/40 text-xs text-nowrap">⏸ Paused & Ready</Badge>
+                        ) : (
+                            <Badge className="bg-green-600/20 text-green-400 border-green-600/40 text-xs animate-pulse text-nowrap">● Live</Badge>
+                        )}
+                    </div>
+
+                    {/* Manual Zoom Toolbar */}
+                    <div className="flex items-center gap-4 bg-[#0d1321] rounded-lg p-1 border border-gray-700/50">
+                        <div className="flex items-center gap-2 px-2">
+                            <span className="text-xs text-gray-500 font-medium tracking-wide">Y-AXIS:</span>
+                            <button onClick={() => setZoomFactorY(f => Math.max(0.5, f - 0.5))} className="p-1 hover:text-white text-gray-400 hover:bg-gray-800 rounded"><ZoomOut size={14} /></button>
+                            <span className="text-xs text-gray-300 w-8 text-center bg-[#16213e] rounded py-0.5">{zoomFactorY}x</span>
+                            <button onClick={() => setZoomFactorY(f => Math.min(10, f + 0.5))} className="p-1 hover:text-white text-gray-400 hover:bg-gray-800 rounded"><ZoomIn size={14} /></button>
+                        </div>
+                        <div className="w-px h-6 bg-gray-700/50"></div>
+                        <div className="flex items-center gap-2 px-2">
+                            <span className="text-xs text-gray-500 font-medium tracking-wide">X-AXIS:</span>
+                            <button onClick={() => setZoomFactorX(f => Math.max(1, f - 1))} className="p-1 hover:text-white text-gray-400 hover:bg-gray-800 rounded"><ZoomOut size={14} /></button>
+                            <span className="text-xs text-gray-300 w-8 text-center bg-[#16213e] rounded py-0.5">{zoomFactorX}x</span>
+                            <button onClick={() => setZoomFactorX(f => Math.min(10, f + 1))} className="p-1 hover:text-white text-gray-400 hover:bg-gray-800 rounded"><ZoomIn size={14} /></button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {(zoomDomainX || zoomDomainY || zoomFactorX > 1 || zoomFactorY > 1) && (
+                            <Button onClick={zoomOut} size="sm" variant="outline" className="h-8 border-gray-600 hover:bg-gray-700 px-3 mr-2 text-xs">
+                                <ZoomOut className="w-3.5 h-3.5 mr-1" /> Reset Zoom
+                            </Button>
+                        )}
+                        <button
+                            onClick={togglePause}
+                            className={`px-3 py-1.5 text-xs rounded-lg font-medium transition-all flex items-center gap-1.5 ${modalPaused
+                                ? 'bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-600/40'
+                                : 'bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 border border-yellow-600/40'
+                                }`}
+                        >
+                            {modalPaused ? (
+                                <><Play className="w-3.5 h-3.5" /> Resume Live</>
+                            ) : (
+                                <><Square className="w-3.5 h-3.5" /> Pause to Drag Zoom</>
+                            )}
+                        </button>
+                        <button onClick={onClose} className="p-2 ml-2 rounded-lg hover:bg-gray-700 transition-colors">
+                            <CloseIcon className="w-5 h-5 text-gray-400" />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Chart Area */}
+                <div className="p-4 flex-1">
+                    {chartData.length < 2 ? (
+                        <div className="h-[420px] flex items-center justify-center text-gray-500">Waiting for data...</div>
+                    ) : (
+                        <div className="relative cursor-crosshair select-none h-[420px]">
+                            {/* Zoom Instructions Overlay */}
+                            {modalPaused && !zoomDomainX && (
+                                <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full pointer-events-none animate-pulse">
+                                    Click and drag across the chart to zoom X and Y axes
+                                </div>
+                            )}
+                            <ResponsiveContainer width="100%" height="100%">
+                                {type === 'time' ? (
+                                    <LineChart
+                                        data={chartData}
+                                        onMouseDown={onChartMouseDown}
+                                        onMouseMove={onChartMouseMove}
+                                        onMouseUp={onChartMouseUp}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                        <XAxis
+                                            dataKey={xKey} stroke="#888" fontSize={11}
+                                            domain={activeXDomain} type="number" allowDataOverflow
+                                            tickFormatter={(v: number) => `${(v / 1000).toFixed(2)}s`}
+                                        />
+                                        <YAxis
+                                            stroke="#888" fontSize={11}
+                                            domain={activeYDomain} type="number" allowDataOverflow
+                                            tickFormatter={(v: number) => `${(v / 1000).toFixed(3)}g`}
+                                        />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #555', borderRadius: '8px', fontSize: '12px' }}
+                                            labelFormatter={(v: any) => `Time: ${(Number(v) / 1000).toFixed(3)}s`}
+                                            formatter={(value: number) => [`${(value / 1000).toFixed(4)}g`, axis.toUpperCase()]}
+                                        />
+                                        <Line type="monotone" dataKey={yKey} stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} />
+
+                                        {refAreaLeft !== null && refAreaRight !== null && (
+                                            <ReferenceArea x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill={color} fillOpacity={0.2} />
+                                        )}
+                                        {/* Brush is nice but conflicts with drag-to-zoom visually, disabled when paused in favor of drag zoom */}
+                                        {!modalPaused && (
+                                            <Brush dataKey={xKey} height={4} stroke="transparent" fill="transparent" travellerWidth={0} />
+                                        )}
+                                    </LineChart>
+                                ) : (
+                                    <AreaChart
+                                        data={chartData}
+                                        onMouseDown={onChartMouseDown}
+                                        onMouseMove={onChartMouseMove}
+                                        onMouseUp={onChartMouseUp}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                        <XAxis
+                                            dataKey={xKey} stroke="#888" fontSize={11}
+                                            domain={activeXDomain} type="number" allowDataOverflow
+                                            tickFormatter={(v: number) => `${v} Hz`}
+                                        />
+                                        <YAxis
+                                            stroke="#888" fontSize={11}
+                                            domain={activeYDomain} type="number" allowDataOverflow
+                                        />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #555', borderRadius: '8px', fontSize: '12px' }}
+                                            labelFormatter={(v: any) => `${v} Hz`}
+                                            formatter={(value: number) => [value.toFixed(4), 'Magnitude']}
+                                        />
+                                        <Area type="monotone" dataKey={yKey} stroke={color} fill={color} fillOpacity={0.3} strokeWidth={2} isAnimationActive={false} />
+
+                                        {refAreaLeft !== null && refAreaRight !== null && (
+                                            <ReferenceArea x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill={color} fillOpacity={0.2} />
+                                        )}
+                                    </AreaChart>
+                                )}
+                            </ResponsiveContainer>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer Info */}
+                <div className="px-4 pb-3 flex justify-between items-center text-[10px] text-gray-500 bg-[#0d1321]">
+                    <span>{chartData.length} data points in view</span>
+                    <span className="font-mono">
+                        Y Range: {activeYDomain[0].toFixed(1)} to {activeYDomain[1].toFixed(1)}
+                    </span>
+                    <span>{modalPaused ? 'Drag across chart to zoom X/Y' : 'Pause to enable drag-zooming'}</span>
+                </div>
+            </div>
+        </div>
+    );
+});
+
+const SensorSimulation: React.FC<SensorSimulationProps> = ({ isEmbedded = false }) => {
     const [isRunning, setIsRunning] = useState(false);
     const [sensorAData, setSensorAData] = useState<SensorData[]>([]);
     const [sensorBData, setSensorBData] = useState<SensorData[]>([]);
@@ -80,46 +520,66 @@ const SensorSimulation = () => {
     const [connectionStatus, setConnectionStatus] = useState<'disconnected' | 'connected'>('disconnected');
     const [dataSource, setDataSource] = useState<'simulation' | 'esp32'>('simulation');
     const [esp32Status, setEsp32Status] = useState<'offline' | 'online'>('offline');
-
-    // Expanded chart modal state
-    const [expandedChart, setExpandedChart] = useState<ExpandedChartInfo | null>(null);
-    const [zoomLevel, setZoomLevel] = useState(1);
-    const [yAxisPresetIndex, setYAxisPresetIndex] = useState(0);
     const eventSourceRef = useRef<EventSource | null>(null);
     const fftIntervalRef = useRef<number | null>(null);
     const dataBufferRef = useRef<{ sensorA: SensorData[]; sensorB: SensorData[] }>({ sensorA: [], sensorB: [] });
-    const animationFrameRef = useRef<number | null>(null);
-    const lastUpdateRef = useRef<number>(0);
-    const expandedChartRef = useRef<ExpandedChartInfo | null>(null);
-    const maxDataPoints = 256;
-    const sampleRate = 50;
     const latestTrainStateRef = useRef<TrainState | null>(null);
+    const [filterNoise, setFilterNoise] = useState(true);
 
-    // Keep ref in sync with state for use in callback
+    // Expanded chart modal state
+    const [expandedChart, setExpandedChart] = useState<{
+        sensor: 'A' | 'B';
+        axis: 'x' | 'y' | 'z';
+        type: 'time' | 'fft';
+    } | null>(null);
+
+    const maxDataPoints = 200; // Keep a small rolling buffer — chart shows sliding window
+    const sampleRate = 50;
+
+    // Throttled buffer flusher using requestAnimationFrame
+    // Update React state at ~20 FPS for smooth real-time scrolling
+    const rafRef = useRef<number | null>(null);
+    const lastFlushRef = useRef<number>(0);
+    const FLUSH_INTERVAL = 50; // ms between state updates (20 FPS)
+
     useEffect(() => {
-        expandedChartRef.current = expandedChart;
-    }, [expandedChart]);
+        if (connectionStatus !== 'connected') return;
 
-    // Throttled update function to batch data updates
-    const flushDataToState = useCallback(() => {
-        const now = performance.now();
-        // Slower updates when modal is open to prevent flickering (300ms = ~3 FPS)
-        const intervalMs = expandedChartRef.current ? 300 : 50;
-        if (now - lastUpdateRef.current >= intervalMs) {
-            const buffer = dataBufferRef.current;
-            if (buffer.sensorA.length > 0) {
-                setSensorAData(prev => [...prev, ...buffer.sensorA].slice(-maxDataPoints));
-                setSensorBData(prev => [...prev, ...buffer.sensorB].slice(-maxDataPoints));
-                dataBufferRef.current = { sensorA: [], sensorB: [] };
-                lastUpdateRef.current = now;
+        const tick = (now: number) => {
+            if (now - lastFlushRef.current >= FLUSH_INTERVAL) {
+                lastFlushRef.current = now;
+
+                const newA = dataBufferRef.current.sensorA;
+                const newB = dataBufferRef.current.sensorB;
+
+                if (newA.length > 0 || newB.length > 0) {
+                    // Swap the buffer atomically — don't spread, just reassign
+                    dataBufferRef.current = { sensorA: [], sensorB: [] };
+
+                    setSensorAData(prev => {
+                        const merged = prev.concat(newA);
+                        return merged.length > maxDataPoints ? merged.slice(-maxDataPoints) : merged;
+                    });
+                    setSensorBData(prev => {
+                        const merged = prev.concat(newB);
+                        return merged.length > maxDataPoints ? merged.slice(-maxDataPoints) : merged;
+                    });
+                }
+
+                if (latestTrainStateRef.current) {
+                    setTrainState(latestTrainStateRef.current);
+                    latestTrainStateRef.current = null;
+                }
             }
-            // Update train state only during flush
-            if (latestTrainStateRef.current) {
-                setTrainState(latestTrainStateRef.current);
-            }
-        }
-        animationFrameRef.current = requestAnimationFrame(flushDataToState);
-    }, [maxDataPoints]);
+
+            rafRef.current = requestAnimationFrame(tick);
+        };
+
+        rafRef.current = requestAnimationFrame(tick);
+        return () => {
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        };
+    }, [connectionStatus, maxDataPoints]);
 
     // Connect to local simulation stream
     const connectToStream = useCallback(() => {
@@ -130,12 +590,23 @@ const SensorSimulation = () => {
         eventSource.onmessage = (event) => {
             const message = JSON.parse(event.data);
             if (message.type === 'data') {
-                const { sensorA, sensorB, trainState: state } = message.data;
-                // Buffer data instead of immediate state update
-                dataBufferRef.current.sensorA.push(sensorA);
-                dataBufferRef.current.sensorB.push(sensorB);
-                // Store latest train state in ref, update will happen in flush
-                latestTrainStateRef.current = state;
+                const { batch } = message.data;
+                if (batch && Array.isArray(batch)) {
+                    // Handle batched data - each batch contains 10 samples for dense waveforms
+                    for (const sample of batch) {
+                        dataBufferRef.current.sensorA.push(sample.sensorA);
+                        dataBufferRef.current.sensorB.push(sample.sensorB);
+                        if (sample.trainState) {
+                            latestTrainStateRef.current = sample.trainState;
+                        }
+                    }
+                } else {
+                    // Fallback for single-sample format
+                    const { sensorA, sensorB, trainState: state } = message.data;
+                    dataBufferRef.current.sensorA.push(sensorA);
+                    dataBufferRef.current.sensorB.push(sensorB);
+                    if (state) latestTrainStateRef.current = state;
+                }
             } else if (message.type === 'status') {
                 setIsRunning(message.data.isRunning);
             }
@@ -207,10 +678,9 @@ const SensorSimulation = () => {
 
     const startSimulation = async () => {
         if (dataSource === 'esp32') {
-            // Connect to ESP32 live data
+            // Use real ESP32 data from MQTT string
             setIsRunning(true);
             connectToESP32Stream();
-            animationFrameRef.current = requestAnimationFrame(flushDataToState);
             // Poll FFT from MQTT buffer
             fftIntervalRef.current = window.setInterval(fetchMqttFFT, 500);
         } else {
@@ -218,7 +688,6 @@ const SensorSimulation = () => {
             await fetch(`${API_URL}/simulation/start`, { method: 'POST' });
             setIsRunning(true);
             connectToStream();
-            animationFrameRef.current = requestAnimationFrame(flushDataToState);
             fftIntervalRef.current = window.setInterval(fetchFFT, 500);
         }
     };
@@ -230,7 +699,6 @@ const SensorSimulation = () => {
         setIsRunning(false);
         eventSourceRef.current?.close();
         if (fftIntervalRef.current) clearInterval(fftIntervalRef.current);
-        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         setConnectionStatus('disconnected');
         // Clear data when stopping
         setSensorAData([]);
@@ -270,7 +738,6 @@ const SensorSimulation = () => {
         return () => {
             eventSourceRef.current?.close();
             if (fftIntervalRef.current) clearInterval(fftIntervalRef.current);
-            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         };
     }, []);
 
@@ -287,247 +754,12 @@ const SensorSimulation = () => {
         }
     };
 
-    // Voltage bar component
-    const VoltageBar = ({ voltage, color }: { voltage: number; color: string }) => {
-        const percentage = (voltage / 3.3) * 100;
-        return (
-            <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                <div
-                    className="h-full transition-all duration-100"
-                    style={{ width: `${percentage}%`, backgroundColor: color }}
-                />
-            </div>
-        );
-    };
-
-    // Time-domain chart component - Memoized to prevent unnecessary re-renders
-    const TimeChart = React.memo(({
-        data,
-        axis,
-        expanded = false,
-        customYDomain = null
-    }: {
-        data: SensorData[];
-        axis: 'x' | 'y' | 'z';
-        expanded?: boolean;
-        customYDomain?: [number, number] | null;
-    }) => {
-        const config = axisConfig[axis];
-
-        // Memoize the prepared time data
-        const timeData = useMemo(() =>
-            data.map((d, i) => ({ time: i * (1000 / sampleRate), amplitude: d[axis] })),
-            [data, axis]
-        );
-
-        // Memoize domain to prevent axis flickering
-        const yDomain = useMemo(() => customYDomain || [-20000, 70000] as [number, number], [customYDomain]);
-
-        const height = expanded ? 350 : 100;
-        const fontSize = expanded ? 11 : 9;
-
-        // Don't render chart if no data - prevents flash of empty chart
-        if (data.length < 2) {
-            return (
-                <div className={`h-[${height}px] flex items-center justify-center text-gray-500 text-xs`}>
-                    Waiting for data...
-                </div>
-            );
-        }
-
-        if (expanded) {
-            return (
-                <div className="h-[400px] w-full overflow-auto">
-                    <LineChart width={900} height={500} data={timeData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                        <XAxis dataKey="time" stroke="#666" fontSize={fontSize} tickFormatter={v => `${(v / 1000).toFixed(1)}s`} />
-                        <YAxis stroke="#666" fontSize={fontSize} domain={yDomain} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                        <Line type="monotone" dataKey="amplitude" stroke={config.color} strokeWidth={2} dot={false} isAnimationActive={false} />
-                    </LineChart>
-                </div>
-            );
-        }
-
-        return (
-            <div className="h-[100px] w-full">
-                <LineChart width={450} height={100} data={timeData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="time" stroke="#666" fontSize={9} tickFormatter={v => `${(v / 1000).toFixed(1)}s`} />
-                    <YAxis stroke="#666" fontSize={9} domain={yDomain} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
-                    <Line type="monotone" dataKey="amplitude" stroke={config.color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
-                </LineChart>
-            </div>
-        );
-    });
-
-    // FFT chart component - Memoized to prevent unnecessary re-renders
-    const FFTChart = React.memo(({
-        data,
-        color,
-        expanded = false
-    }: {
-        data: FFTPoint[] | undefined;
-        color: string;
-        expanded?: boolean;
-    }) => {
-        // Memoize the data to prevent re-renders
-        const chartData = useMemo(() => data || [], [data]);
-
-        const height = expanded ? 350 : 80;
-        const fontSize = expanded ? 11 : 8;
-
-        if (!chartData || chartData.length === 0) {
-            return (
-                <div className={`h-[${height}px] flex items-center justify-center text-gray-500 text-xs`}>
-                    Waiting for DSP PIC data...
-                </div>
-            );
-        }
-
-        if (expanded) {
-            return (
-                <div className="h-[400px] w-full overflow-auto">
-                    <AreaChart width={900} height={500} data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                        <XAxis dataKey="frequency" stroke="#666" fontSize={fontSize} tickFormatter={v => `${v}Hz`} />
-                        <YAxis stroke="#666" fontSize={fontSize} domain={[0, 'auto']} />
-                        <Area type="monotone" dataKey="magnitude" stroke={color} fill={color} fillOpacity={0.3} isAnimationActive={false} />
-                    </AreaChart>
-                </div>
-            );
-        }
-
-        return (
-            <div className="h-[80px] w-full">
-                <AreaChart width={450} height={80} data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="frequency" stroke="#666" fontSize={8} tickFormatter={v => `${v}`} />
-                    <YAxis stroke="#666" fontSize={8} domain={[0, 'auto']} />
-                    <Area type="monotone" dataKey="magnitude" stroke={color} fill={color} fillOpacity={0.3} isAnimationActive={false} />
-                </AreaChart>
-            </div>
-        );
-    });
-
-    // Sensor panel component - Memoized to reduce flickering
-    const SensorPanel = React.memo(({
-        sensor,
-        data,
-        voltage,
-        fft,
-        onExpandChart
-    }: {
-        sensor: 'A' | 'B';
-        data: SensorData[];
-        voltage: VoltageData;
-        fft: { x: FFTPoint[]; y: FFTPoint[]; z: FFTPoint[] } | undefined;
-        onExpandChart: (info: ExpandedChartInfo) => void;
-    }) => {
-        const config = sensorConfig[sensor];
-
-        // Memoize the expand handler to prevent re-creation
-        const handleExpandTime = useCallback((axis: 'x' | 'y' | 'z') => {
-            onExpandChart({ sensor, axis, type: 'time' });
-        }, [sensor, onExpandChart]);
-
-        const handleExpandFFT = useCallback((axis: 'x' | 'y' | 'z') => {
-            onExpandChart({ sensor, axis, type: 'fft' });
-        }, [sensor, onExpandChart]);
-
-        return (
-            <div className={`space-y-3 p-3 rounded-xl border ${config.borderColor} bg-gradient-to-br from-gray-900/50 to-gray-800/30`}>
-                {/* Sensor Header */}
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Activity className="w-4 h-4" style={{ color: config.color }} />
-                        <span className="font-semibold text-sm" style={{ color: config.color }}>{config.name}</span>
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">ADXL335</Badge>
-                    </div>
-                </div>
-
-                {/* Voltage Indicators */}
-                <Card className="bg-[#0d1321] border-gray-700/50">
-                    <CardContent className="p-2">
-                        <div className="text-[10px] text-gray-400 mb-1.5 flex items-center gap-1">
-                            <Cpu className="w-3 h-3" /> Analog Output (0-3.3V)
-                        </div>
-                        <div className="grid grid-cols-3 gap-2">
-                            {(['x', 'y', 'z'] as const).map((axis) => (
-                                <div key={axis} className="space-y-1">
-                                    <div className="flex justify-between text-[10px]">
-                                        <span style={{ color: axisConfig[axis].color }}>{axis.toUpperCase()}</span>
-                                        <span className="text-gray-300 font-mono">{voltage[axis].toFixed(3)}V</span>
-                                    </div>
-                                    <VoltageBar voltage={voltage[axis]} color={axisConfig[axis].color} />
-                                </div>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-
-                {/* Time Domain Charts - Clickable for expanded view */}
-                {(['x', 'y', 'z'] as const).map((axis) => (
-                    <Card key={`${sensor}-time-${axis}`} className="bg-[#16213e] border-0">
-                        <CardHeader className="py-1.5 px-3">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-xs" style={{ color: axisConfig[axis].color }}>
-                                    {axisConfig[axis].name} - Time Domain (Amplitude vs Time)
-                                </CardTitle>
-                                <button
-                                    onClick={() => handleExpandTime(axis)}
-                                    className="p-1.5 rounded hover:bg-cyan-500/20 transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
-                                    title="Click to expand"
-                                >
-                                    <Maximize2 className="w-4 h-4 text-cyan-400" />
-                                </button>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-1.5">
-                            <TimeChart data={data} axis={axis} />
-                        </CardContent>
-                    </Card>
-                ))}
-
-                {/* FFT Charts - Clickable for expanded view */}
-                <Card className="bg-[#1a1a2e] border-0">
-                    <CardHeader className="py-1.5 px-3">
-                        <div className="flex items-center gap-2">
-                            <Cpu className="w-3 h-3 text-purple-400" />
-                            <CardTitle className="text-xs text-purple-400">DSP PIC FFT Results (Frequency Domain)</CardTitle>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-2 space-y-2">
-                        {(['x', 'y', 'z'] as const).map((axis) => (
-                            <div key={`${sensor}-fft-${axis}`}>
-                                <div className="flex items-center justify-between text-[10px] mb-1 p-1 rounded">
-                                    <span style={{ color: axisConfig[axis].color }}>
-                                        {axisConfig[axis].name} FFT
-                                    </span>
-                                    <button
-                                        onClick={() => handleExpandFFT(axis)}
-                                        className="p-1 rounded hover:bg-purple-500/20 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                                        title="Click to expand"
-                                    >
-                                        <Maximize2 className="w-3.5 h-3.5 text-purple-400" />
-                                    </button>
-                                </div>
-                                <FFTChart data={fft?.[axis]} color={axisConfig[axis].color} />
-                            </div>
-                        ))}
-                        <div className="text-center text-[9px] text-gray-500">Frequency (Hz)</div>
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    });
-
-    // Stable callback for expanding charts
-    const handleExpandChart = useCallback((info: ExpandedChartInfo) => {
-        setExpandedChart(info);
+    // Stable callback for chart expansion
+    const handleExpand = useCallback((info: { sensor: 'A' | 'B'; axis: 'x' | 'y' | 'z'; type: 'time' | 'fft'; data: any[] }) => {
+        setExpandedChart({ sensor: info.sensor, axis: info.axis, type: info.type });
     }, []);
-
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#0d1321] via-[#1a1a2e] to-[#16213e] p-4">
+        <div className={isEmbedded ? "w-full" : "min-h-screen bg-gradient-to-br from-[#0d1321] via-[#1a1a2e] to-[#16213e] p-4"}>
             <div className="max-w-7xl mx-auto space-y-4">
                 {/* Header */}
                 <div className="flex items-center justify-between bg-[#16213e]/80 backdrop-blur-sm rounded-xl p-4 border border-gray-700/30">
@@ -639,16 +871,29 @@ const SensorSimulation = () => {
                         data={sensorAData}
                         voltage={latestVoltageA}
                         fft={fftData?.sensorA}
-                        onExpandChart={handleExpandChart}
+                        dataSource={dataSource}
+                        onExpand={handleExpand}
                     />
                     <SensorPanel
                         sensor="B"
                         data={sensorBData}
                         voltage={latestVoltageB}
                         fft={fftData?.sensorB}
-                        onExpandChart={handleExpandChart}
+                        dataSource={dataSource}
+                        onExpand={handleExpand}
                     />
                 </div>
+
+                {/* Expanded Chart Modal */}
+                {expandedChart && (
+                    <ExpandedChartModal
+                        expandedChart={expandedChart}
+                        onClose={() => setExpandedChart(null)}
+                        sensorAData={sensorAData}
+                        sensorBData={sensorBData}
+                        fftData={fftData}
+                    />
+                )}
 
                 {/* Info Footer */}
                 <div className="text-xs text-gray-500 text-center space-y-1 py-2">
@@ -656,96 +901,6 @@ const SensorSimulation = () => {
                     <p>DSP PIC FFT: 256-point Window | 10-500 Hz Analysis Range</p>
                 </div>
             </div>
-
-            {/* Expanded Chart Modal */}
-            <Dialog open={expandedChart !== null} onOpenChange={(open) => !open && setExpandedChart(null)}>
-                <DialogContent className="max-w-4xl w-[90vw] max-h-[90vh] bg-[#0d1321] border-gray-700">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-3 text-white">
-                            <Activity className="w-5 h-5" style={{ color: expandedChart ? sensorConfig[expandedChart.sensor].color : '#fff' }} />
-                            <span style={{ color: expandedChart ? sensorConfig[expandedChart.sensor].color : '#fff' }}>
-                                {expandedChart ? sensorConfig[expandedChart.sensor].name : ''} - {expandedChart ? axisConfig[expandedChart.axis].name : ''}
-                            </span>
-                            <Badge variant="outline" className="text-xs">
-                                {expandedChart?.type === 'time' ? 'Time Domain' : 'FFT Frequency Domain'}
-                            </Badge>
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    {expandedChart && (
-                        <div className="space-y-4">
-                            {/* Controls */}
-                            <div className="flex items-center gap-6 p-3 bg-gray-800/50 rounded-lg">
-                                {/* Zoom Control */}
-                                <div className="flex items-center gap-2 flex-1">
-                                    <ZoomOut className="w-4 h-4 text-gray-400" />
-                                    <div className="flex-1">
-                                        <div className="text-xs text-gray-400 mb-1">Zoom: {zoomLevel}x</div>
-                                        <Slider
-                                            value={[zoomLevel]}
-                                            onValueChange={(v) => setZoomLevel(v[0])}
-                                            min={1}
-                                            max={5}
-                                            step={0.5}
-                                            className="w-full"
-                                        />
-                                    </div>
-                                    <ZoomIn className="w-4 h-4 text-gray-400" />
-                                </div>
-
-                                {/* Y-Axis Scale Presets (only for time domain) */}
-                                {expandedChart.type === 'time' && (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs text-gray-400">Y-Scale:</span>
-                                        <div className="flex gap-1">
-                                            {yAxisPresets.map((preset, idx) => (
-                                                <Button
-                                                    key={preset.label}
-                                                    variant={yAxisPresetIndex === idx ? 'default' : 'outline'}
-                                                    size="sm"
-                                                    className={`text-xs px-2 py-1 h-7 ${yAxisPresetIndex === idx ? 'bg-cyan-600' : 'border-gray-600'}`}
-                                                    onClick={() => setYAxisPresetIndex(idx)}
-                                                >
-                                                    {preset.label}
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Expanded Chart */}
-                            <div className="bg-[#16213e] rounded-lg p-4">
-                                {expandedChart.type === 'time' ? (
-                                    <TimeChart
-                                        data={expandedChart.sensor === 'A'
-                                            ? sensorAData.slice(-Math.floor(maxDataPoints / zoomLevel))
-                                            : sensorBData.slice(-Math.floor(maxDataPoints / zoomLevel))}
-                                        axis={expandedChart.axis}
-                                        expanded={true}
-                                        customYDomain={yAxisPresets[yAxisPresetIndex].value as [number, number] | null}
-                                    />
-                                ) : (
-                                    <FFTChart
-                                        data={expandedChart.sensor === 'A'
-                                            ? fftData?.sensorA?.[expandedChart.axis]
-                                            : fftData?.sensorB?.[expandedChart.axis]}
-                                        color={axisConfig[expandedChart.axis].color}
-                                        expanded={true}
-                                    />
-                                )}
-                            </div>
-
-                            {/* Help Text */}
-                            <div className="text-xs text-gray-500 text-center">
-                                {expandedChart.type === 'time'
-                                    ? 'Use zoom to see more detail on the time axis. Use Y-Scale presets to view small amplitude signals.'
-                                    : 'FFT shows the frequency components of the vibration signal. Higher magnitudes indicate dominant frequencies.'}
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
         </div>
     );
 };

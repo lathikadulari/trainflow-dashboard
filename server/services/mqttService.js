@@ -188,6 +188,13 @@ const connectMQTT = () => {
                     console.log('Subscribed to adxl335/# topics');
                 }
             });
+            client.subscribe('makumbura/#', (err) => {
+                if (err) {
+                    console.error('Subscription makumbura error:', err);
+                } else {
+                    console.log('Subscribed to makumbura/# topics');
+                }
+            });
 
             resolve(client);
         });
@@ -243,6 +250,26 @@ const connectMQTT = () => {
                         voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
                     };
                 } else if (topic === 'adxl335/sensor2' && data) {
+                    mappedTopic = 'trainflow/sensor/B';
+                    mappedData = {
+                        timestamp: Date.now(),
+                        x: (data.x_g || 0) * 1000,
+                        y: 0,
+                        z: (data.z_g || 0) * 1000,
+                        magnitude: Math.sqrt((data.x_g || 0) ** 2 + (data.z_g || 0) ** 2) * 1000,
+                        voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
+                    };
+                } else if (topic === 'makumbura/sensor1' && data) {
+                    mappedTopic = 'trainflow/sensor/A';
+                    mappedData = {
+                        timestamp: Date.now(),
+                        x: (data.x_g || 0) * 1000,
+                        y: 0,
+                        z: (data.z_g || 0) * 1000,
+                        magnitude: Math.sqrt((data.x_g || 0) ** 2 + (data.z_g || 0) ** 2) * 1000,
+                        voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
+                    };
+                } else if (topic === 'makumbura/sensor2' && data) {
                     mappedTopic = 'trainflow/sensor/B';
                     mappedData = {
                         timestamp: Date.now(),

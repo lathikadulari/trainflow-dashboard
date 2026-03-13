@@ -100,6 +100,7 @@ router.get('/stream', (req, res) => {
 
 // Setup simulator event listeners
 simulator.on('data', (data) => {
+    // data is { batch: [...] } containing 10 samples per emission
     const message = JSON.stringify({ type: 'data', data });
     sseClients.forEach(client => {
         client.res.write(`data: ${message}\n\n`);

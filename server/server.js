@@ -42,7 +42,7 @@ let mqttSseClients = [];
 
 // Set up MQTT message callback to broadcast to SSE clients
 mqttService.setMessageCallback((topic, data) => {
-    if (topic.startsWith('trainflow/sensor/') || topic === 'trainflow/trainState') {
+    if (topic.startsWith('trainflow/sensor/') || topic === 'trainflow/trainState' || topic.startsWith('makumbura/')) {
         const message = JSON.stringify({ topic, data, timestamp: Date.now() });
         mqttSseClients.forEach(client => {
             client.res.write(`data: ${message}\n\n`);
