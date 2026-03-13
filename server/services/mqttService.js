@@ -28,29 +28,72 @@ const sensorBuffer = {
 const maxBufferSize = 512;
 const fftWindowSize = 256;
 
-// DFT computation (same algorithm as sensorSimulator)
+// True FFT computation using Radix-2 Cooley-Tukey algorithm
 const computeFFT = (signal, sampleRate = 50) => {
     const N = signal.length;
     if (N < 16) return [];
 
     // Pad to power of 2
     const paddedLength = Math.pow(2, Math.ceil(Math.log2(N)));
-    const padded = [...signal];
-    while (padded.length < paddedLength) padded.push(0);
+
+    // Arrays for real and imaginary parts
+    const real = new Float64Array(paddedLength);
+    const imag = new Float64Array(paddedLength);
+
+    for (let i = 0; i < N; i++) {
+        real[i] = signal[i];
+    }
+
+    // Bit-reversal permutation
+    let j = 0;
+    for (let i = 0; i < paddedLength - 1; i++) {
+        if (i < j) {
+            let temp = real[i];
+            real[i] = real[j];
+            real[j] = temp;
+        }
+        let m = paddedLength >> 1;
+        while (m <= j) {
+            j -= m;
+            m >>= 1;
+        }
+        j += m;
+    }
+
+    // Cooley-Tukey decimation-in-time radix-2 FFT
+    for (let i = 1; i < paddedLength; i <<= 1) {
+        const step = i << 1;
+        const theta = -Math.PI / i;
+        const wTemp = Math.sin(0.5 * theta);
+        const wR = -2.0 * wTemp * wTemp;
+        const wI = Math.sin(theta);
+
+        for (let m = 0; m < paddedLength; m += step) {
+            let wr = 1.0;
+            let wi = 0.0;
+            for (let k = 0; k < i; k++) {
+                const idx1 = m + k;
+                const idx2 = m + k + i;
+                const tr = wr * real[idx2] - wi * imag[idx2];
+                const ti = wr * imag[idx2] + wi * real[idx2];
+                real[idx2] = real[idx1] - tr;
+                imag[idx2] = imag[idx1] - ti;
+                real[idx1] += tr;
+                imag[idx1] += ti;
+
+                const wtr = wr * wR - wi * wI + wr;
+                const wti = wi * wR + wr * wI + wi;
+                wr = wtr;
+                wi = wti;
+            }
+        }
+    }
 
     const results = [];
 
-    // DFT computation
+    // Calculate magnitudes and apply bandpass filter (positive frequencies only)
     for (let k = 0; k < paddedLength / 2; k++) {
-        let realSum = 0, imagSum = 0;
-
-        for (let n = 0; n < paddedLength; n++) {
-            const angle = (2 * Math.PI * k * n) / paddedLength;
-            realSum += padded[n] * Math.cos(angle);
-            imagSum -= padded[n] * Math.sin(angle);
-        }
-
-        const magnitude = Math.sqrt(realSum * realSum + imagSum * imagSum) / paddedLength;
+        const magnitude = Math.sqrt(real[k] * real[k] + imag[k] * imag[k]) / paddedLength;
         const frequency = (k * sampleRate) / paddedLength;
 
         // Filter to 10-250 Hz range (relevant for train vibration)
@@ -74,7 +117,7 @@ const computeAllFFT = () => {
     const maxMagnitudeA = Math.max(...windowA.map(d => Math.abs(d.magnitude || 0)));
     const maxMagnitudeB = Math.max(...windowB.map(d => Math.abs(d.magnitude || 0)));
 
-    const signalThreshold = 1500;
+    const signalThreshold = 50; // lowered from 1500 for higher sensitivity to small signals
 
     const computeIfSignificant = (data, maxMag) => {
         if (maxMag < signalThreshold) {
@@ -124,6 +167,20 @@ const connectMQTT = () => {
                     console.log('Subscribed to trainflow/# topics');
                 }
             });
+            client.subscribe('adxl335/#', (err) => {
+                if (err) {
+                    console.error('Subscription adxl335 error:', err);
+                } else {
+                    console.log('Subscribed to adxl335/# topics');
+                }
+            });
+            client.subscribe('makumbura/#', (err) => {
+                if (err) {
+                    console.error('Subscription makumbura error:', err);
+                } else {
+                    console.log('Subscribed to makumbura/# topics');
+                }
+            });
 
             resolve(client);
         });
@@ -153,16 +210,61 @@ const connectMQTT = () => {
                     timestamp: new Date().toISOString()
                 };
 
+                let mappedTopic = topic;
+                let mappedData = data;
+
+                if (topic === 'adxl335/sensor1' && data) {
+                    mappedTopic = 'trainflow/sensor/A';
+                    mappedData = {
+                        timestamp: Date.now(),
+                        x: (data.x_g || 0) * 1000,
+                        y: 0,
+                        z: (data.z_g || 0) * 1000,
+                        magnitude: Math.sqrt((data.x_g || 0) ** 2 + (data.z_g || 0) ** 2) * 1000,
+                        voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
+                    };
+                } else if (topic === 'adxl335/sensor2' && data) {
+                    mappedTopic = 'trainflow/sensor/B';
+                    mappedData = {
+                        timestamp: Date.now(),
+                        x: (data.x_g || 0) * 1000,
+                        y: 0,
+                        z: (data.z_g || 0) * 1000,
+                        magnitude: Math.sqrt((data.x_g || 0) ** 2 + (data.z_g || 0) ** 2) * 1000,
+                        voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
+                    };
+                } else if (topic === 'makumbura/sensor1' && data) {
+                    mappedTopic = 'trainflow/sensor/A';
+                    mappedData = {
+                        timestamp: Date.now(),
+                        x: (data.x_g || 0) * 1000,
+                        y: 0,
+                        z: (data.z_g || 0) * 1000,
+                        magnitude: Math.sqrt((data.x_g || 0) ** 2 + (data.z_g || 0) ** 2) * 1000,
+                        voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
+                    };
+                } else if (topic === 'makumbura/sensor2' && data) {
+                    mappedTopic = 'trainflow/sensor/B';
+                    mappedData = {
+                        timestamp: Date.now(),
+                        x: (data.x_g || 0) * 1000,
+                        y: 0,
+                        z: (data.z_g || 0) * 1000,
+                        magnitude: Math.sqrt((data.x_g || 0) ** 2 + (data.z_g || 0) ** 2) * 1000,
+                        voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
+                    };
+                }
+
                 // Buffer sensor data for FFT computation
-                if (topic === 'trainflow/sensor/A' && data) {
+                if (mappedTopic === 'trainflow/sensor/A' && mappedData) {
                     lastEsp32DataTime = Date.now(); // Update heartbeat
-                    sensorBuffer.sensorA.push(data);
+                    sensorBuffer.sensorA.push(mappedData);
                     if (sensorBuffer.sensorA.length > maxBufferSize) {
                         sensorBuffer.sensorA.shift();
                     }
-                } else if (topic === 'trainflow/sensor/B' && data) {
+                } else if (mappedTopic === 'trainflow/sensor/B' && mappedData) {
                     lastEsp32DataTime = Date.now(); // Update heartbeat
-                    sensorBuffer.sensorB.push(data);
+                    sensorBuffer.sensorB.push(mappedData);
                     if (sensorBuffer.sensorB.length > maxBufferSize) {
                         sensorBuffer.sensorB.shift();
                     }
@@ -170,7 +272,7 @@ const connectMQTT = () => {
 
                 // Call the message callback if set
                 if (messageCallback) {
-                    messageCallback(topic, data);
+                    messageCallback(mappedTopic, mappedData);
                 }
             } catch (e) {
                 // If not JSON, store as string

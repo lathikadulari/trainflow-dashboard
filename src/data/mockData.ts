@@ -1,7 +1,7 @@
 import { Station, TrainApproach, DashboardStats, Log } from '@/types/train';
 
 export const mockStations: Station[] = [
-  {
+{
     id: '1',
     name: 'Maradana',
     code: 'MAR',
@@ -3074,354 +3074,6 @@ export const mockStations: Station[] = [
     totalApproaches: 63
   },
   {
-    id: '257',
-    name: 'Baseline Road',
-    code: 'BAS',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's257-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's257-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 22
-  },
-  {
-    id: '258',
-    name: 'Cotta Road',
-    code: 'COT',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's258-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's258-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 25
-  },
-  {
-    id: '259',
-    name: 'Narahenpita',
-    code: 'NAR',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's259-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's259-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 19
-  },
-  {
-    id: '260',
-    name: 'Kirulapone',
-    code: 'KIR',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's260-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's260-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 78
-  },
-  {
-    id: '261',
-    name: 'Nugegoda',
-    code: 'NUG',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's261-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's261-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 50
-  },
-  {
-    id: '262',
-    name: 'Udhamulla',
-    code: 'UDH',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's262-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's262-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 98
-  },
-  {
-    id: '263',
-    name: 'Nawinna',
-    code: 'NAW',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's263-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's263-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 96
-  },
-  {
-    id: '264',
-    name: 'maharagama',
-    code: 'MAH',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's264-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's264-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 108
-  },
-  {
-    id: '265',
-    name: 'Pannipitiya',
-    code: 'PAN',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's265-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's265-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 72
-  },
-  {
-    id: '266',
-    name: 'Kottawa',
-    code: 'KOT',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's266-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's266-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 23
-  },
-  {
-    id: '267',
-    name: 'Malapalle',
-    code: 'MAL',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's267-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's267-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 52
-  },
-  {
-    id: '268',
-    name: 'Homagama Hospital',
-    code: 'HOM',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's268-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's268-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 63
-  },
-  {
-    id: '269',
-    name: 'Homagama',
-    code: 'HOM',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's269-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's269-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 40
-  },
-  {
-    id: '270',
-    name: 'Panagoda',
-    code: 'PAN',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's270-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's270-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 63
-  },
-  {
-    id: '271',
-    name: 'Godagama',
-    code: 'GOD',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's271-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's271-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 56
-  },
-  {
-    id: '272',
-    name: 'Meegoda',
-    code: 'MEE',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's272-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's272-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 100
-  },
-  {
-    id: '273',
-    name: 'Watareka',
-    code: 'WAT',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's273-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's273-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 79
-  },
-  {
-    id: '274',
-    name: 'Padukka',
-    code: 'PAD',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's274-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's274-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 34
-  },
-  {
-    id: '275',
-    name: 'Arukkuwatte',
-    code: 'ARU',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's275-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's275-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 99
-  },
-  {
-    id: '276',
-    name: 'Angampitiya',
-    code: 'ANG',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's276-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's276-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 76
-  },
-  {
-    id: '277',
-    name: 'Uggalla',
-    code: 'UGG',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's277-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's277-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 82
-  },
-  {
-    id: '278',
-    name: 'Pinnawala',
-    code: 'PIN',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's278-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's278-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 61
-  },
-  {
-    id: '279',
-    name: 'Gammana',
-    code: 'GAM',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's279-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's279-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 28
-  },
-  {
-    id: '280',
-    name: 'Morakele',
-    code: 'MOR',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's280-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's280-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 105
-  },
-  {
-    id: '281',
-    name: 'Waga',
-    code: 'WAG',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's281-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's281-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 26
-  },
-  {
-    id: '282',
-    name: 'Kadugoda',
-    code: 'KAD',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's282-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's282-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 48
-  },
-  {
-    id: '283',
-    name: 'Kosgama',
-    code: 'KOS',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's283-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's283-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 39
-  },
-  {
-    id: '284',
-    name: 'puwakpitiya',
-    code: 'PUW',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's284-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's284-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 38
-  },
-  {
-    id: '285',
-    name: 'Avisawella',
-    code: 'AVI',
-    province: 'Unknown',
-    line: 'KV Line',
-    sensors: [
-      { id: 's285-1', name: 'Sensor 1', status: 'online', lastPing: new Date() },
-      { id: 's285-2', name: 'Sensor 2', status: 'online', lastPing: new Date() }
-    ],
-    totalApproaches: 55
-  },
-  {
     id: '286',
     name: 'Sarasaviyana',
     code: 'SAR',
@@ -3673,6 +3325,486 @@ export const mockStations: Station[] = [
     ],
     totalApproaches: 22
   },
+{
+    id: '400',
+    name: 'Colombo Fort',
+    code: 'FOT',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's400-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's400-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 93
+  },
+  {
+    id: '401',
+    name: 'Maradana',
+    code: 'MAR',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's401-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's401-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 74
+  },
+  {
+    id: '402',
+    name: 'Baseline Road',
+    code: 'BAS',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's402-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's402-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 80
+  },
+  {
+    id: '403',
+    name: 'Cotta Road',
+    code: 'COT',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's403-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's403-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 25
+  },
+  {
+    id: '404',
+    name: 'Narahenpita',
+    code: 'NAR',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's404-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's404-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 83
+  },
+  {
+    id: '405',
+    name: 'Kirulapana',
+    code: 'KIR',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's405-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's405-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 70
+  },
+  {
+    id: '406',
+    name: 'Nugegoda',
+    code: 'NUG',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's406-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's406-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 29
+  },
+  {
+    id: '407',
+    name: 'Pengiriwatta',
+    code: 'PEN',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's407-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's407-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 46
+  },
+  {
+    id: '408',
+    name: 'Udahamulla',
+    code: 'UDA',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's408-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's408-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 50
+  },
+  {
+    id: '409',
+    name: 'Navinna',
+    code: 'NAV',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's409-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's409-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 42
+  },
+  {
+    id: '410',
+    name: 'Maharagama',
+    code: 'MAH',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's410-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's410-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 9
+  },
+  {
+    id: '411',
+    name: 'Pannipitiya',
+    code: 'PAN',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's411-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's411-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 65
+  },
+  {
+    id: '412',
+    name: 'Kottawa',
+    code: 'KOT',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's412-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's412-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 35
+  },
+  {
+    id: '413',
+    name: 'Makumbura',
+    code: 'MAK',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's413-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's413-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 8
+  },
+  {
+    id: '414',
+    name: 'Malapalle',
+    code: 'MAL',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's414-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's414-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 57
+  },
+  {
+    id: '415',
+    name: 'Homagama Hospital',
+    code: 'HOM',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's415-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's415-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 26
+  },
+  {
+    id: '416',
+    name: 'Homagama',
+    code: 'HOM',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's416-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's416-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 2
+  },
+  {
+    id: '417',
+    name: 'Panagoda',
+    code: 'PAN',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's417-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's417-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 50
+  },
+  {
+    id: '418',
+    name: 'Godagama',
+    code: 'GOD',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's418-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's418-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 39
+  },
+  {
+    id: '419',
+    name: 'Meegoda',
+    code: 'MEE',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's419-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's419-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 1
+  },
+  {
+    id: '420',
+    name: 'Watareka',
+    code: 'WAT',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's420-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's420-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 8
+  },
+  {
+    id: '421',
+    name: 'Liyanwala',
+    code: 'LIY',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's421-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's421-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 6
+  },
+  {
+    id: '422',
+    name: 'Padukka',
+    code: 'PAD',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's422-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's422-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 47
+  },
+  {
+    id: '423',
+    name: 'Arukwatta',
+    code: 'ARU',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's423-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's423-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 40
+  },
+  {
+    id: '424',
+    name: 'Angampitiya',
+    code: 'ANG',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's424-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's424-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 74
+  },
+  {
+    id: '425',
+    name: 'Uggalla',
+    code: 'UGG',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's425-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's425-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 26
+  },
+  {
+    id: '426',
+    name: 'Pinnawala',
+    code: 'PIN',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's426-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's426-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 26
+  },
+  {
+    id: '427',
+    name: 'Gammana',
+    code: 'GAM',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's427-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's427-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 54
+  },
+  {
+    id: '428',
+    name: 'Morakele',
+    code: 'MOR',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's428-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's428-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 52
+  },
+  {
+    id: '429',
+    name: 'Waga',
+    code: 'WAG',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's429-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's429-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 75
+  },
+  {
+    id: '430',
+    name: 'Kadugoda',
+    code: 'KAD',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's430-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's430-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 77
+  },
+  {
+    id: '431',
+    name: 'Arapanagama',
+    code: 'ARA',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's431-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's431-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 71
+  },
+  {
+    id: '432',
+    name: 'Kosgama',
+    code: 'KOS',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's432-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's432-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 50
+  },
+  {
+    id: '433',
+    name: 'Aluthambalama',
+    code: 'ALU',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's433-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's433-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 15
+  },
+  {
+    id: '434',
+    name: 'Miriswatta',
+    code: 'MIR',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's434-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's434-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 86
+  },
+  {
+    id: '435',
+    name: 'Hingurala',
+    code: 'HIN',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's435-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's435-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 82
+  },
+  {
+    id: '436',
+    name: 'Puwakpitiya',
+    code: 'PUW',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's436-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's436-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 98
+  },
+  {
+    id: '437',
+    name: 'Puwakpitiya Town',
+    code: 'PUW',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's437-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's437-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 3
+  },
+  {
+    id: '438',
+    name: 'Kiriwadala',
+    code: 'KIR',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's438-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's438-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 91
+  },
+  {
+    id: '439',
+    name: 'Avissawella',
+    code: 'AVI',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's439-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's439-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 56
+  }
 ];
 
 export const mockTrainApproaches: TrainApproach[] = [

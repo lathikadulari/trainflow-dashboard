@@ -1,8 +1,8 @@
 /*
   ============================================================
-  Dual ADXL335 — ADS1115 — ESP32 Dual-Core
+  MAKUMBURA STATION — Dual ADXL335 — ADS1115 — ESP32 Dual-Core
   SD Card Logging  +  HiveMQ Cloud MQTT (TLS)
-  ID: 3F8Z2QW (FIXED VERSION)
+  Station ID: MKB01
   ============================================================
 
   CORE ASSIGNMENT:
@@ -28,10 +28,10 @@
     A0 → Sensor 1 X-axis   A1 → Sensor 1 Z-axis
     A2 → Sensor 2 X-axis   A3 → Sensor 2 Z-axis
 
-  MQTT TOPICS:
-    adxl335/sensor1   → {"x_g":..., "z_g":..., "x_v":..., "z_v":...}
-    adxl335/sensor2   → {"x_g":..., "z_g":..., "x_v":..., "z_v":...}
-    adxl335/status    → {"sample":..., "sd":..., "wifi":..., "mqtt":...}
+  MQTT TOPICS (Makumbura Station):
+    makumbura/sensor1   → {"x_g":..., "z_g":..., "x_v":..., "z_v":...}
+    makumbura/sensor2   → {"x_g":..., "z_g":..., "x_v":..., "z_v":...}
+    makumbura/status    → {"sample":..., "sd":..., "wifi":..., "mqtt":...}
 
   LIBRARIES (Arduino Library Manager):
     → "Adafruit ADS1X15"  by Adafruit
@@ -49,24 +49,24 @@
 #include <Adafruit_ADS1X15.h>
 
 // ── WiFi ──────────────────────────────────────────────────────────────────────
-const char* WIFI_SSID     = "Lathika 4G";       // ← change
-const char* WIFI_PASSWORD = "asdf12345";   // ← change
+const char* WIFI_SSID     = "YOUR_WIFI_SSID";     // ← change to your WiFi name
+const char* WIFI_PASSWORD = "YOUR_WIFI_PASS";      // ← change to your WiFi password
 
 // ── HiveMQ Cloud MQTT (TLS port 8883) ────────────────────────────────────────
-const char* MQTT_SERVER   = "8102284b29c24b4eb40e06ac182d1130.s1.eu.hivemq.cloud";
-const int   MQTT_PORT     = 8883;
-const char* MQTT_USER     = "dulari";
-const char* MQTT_PASS     = "Dulari@123";
-const char* MQTT_CLIENT_ID = "ESP32_SIMULATOR_SIM01";
+const char* MQTT_SERVER    = "8102284b29c24b4eb40e06ac182d1130.s1.eu.hivemq.cloud";
+const int   MQTT_PORT      = 8883;
+const char* MQTT_USER      = "dulari";
+const char* MQTT_PASS      = "Dulari@123";
+const char* MQTT_CLIENT_ID = "ESP32_MAKUMBURA_MKB01";
 
 // HiveMQ Cloud uses a trusted CA — set to insecure for simplicity
 // To use full cert verification, paste HiveMQ's root CA below
 #define MQTT_USE_INSECURE true
 
-// ── MQTT Topics ───────────────────────────────────────────────────────────────
-const char* TOPIC_S1     = "adxl335/sensor1";
-const char* TOPIC_S2     = "adxl335/sensor2";
-const char* TOPIC_STATUS = "adxl335/status";
+// ── MQTT Topics (Makumbura Station) ───────────────────────────────────────────
+const char* TOPIC_S1     = "makumbura/sensor1";
+const char* TOPIC_S2     = "makumbura/sensor2";
+const char* TOPIC_STATUS = "makumbura/status";
 
 // ── I2C Pins ──────────────────────────────────────────────────────────────────
 #define SDA_PIN  21
@@ -96,7 +96,7 @@ const uint8_t  SD_MAX_RETRIES       = 5;
 
 // ── SD Buffer ─────────────────────────────────────────────────────────────────
 #define BUFFER_ROWS  10
-const char* LOG_FILE = "/data.csv";
+const char* LOG_FILE = "/makumbura_data.csv";
 
 // ── Shared Data (Core 0 ↔ Core 1) ────────────────────────────────────────────
 // Protected by mutex — Core 1 writes, Core 0 reads for MQTT publish
@@ -219,7 +219,7 @@ void bufferRow(uint32_t idx, const SensorData& s1, const SensorData& s2) {
 // ═════════════════════════════════════════════════════════════════════════════
 void printReadings(uint32_t idx, const SensorData& s1, const SensorData& s2) {
   Serial.println("--------------------------------------------------");
-  Serial.print("[#"); Serial.print(idx); Serial.print("]");
+  Serial.print("[MAKUMBURA #"); Serial.print(idx); Serial.print("]");
   Serial.print("  WiFi:"); Serial.print(wifiConnected ? "OK" : "--");
   Serial.print("  MQTT:"); Serial.println(mqttConnected ? "OK" : "--");
 
@@ -248,7 +248,7 @@ void printReadings(uint32_t idx, const SensorData& s1, const SensorData& s2) {
 // ═════════════════════════════════════════════════════════════════════════════
 void connectWiFi() {
   if (WiFi.status() == WL_CONNECTED) { wifiConnected = true; return; }
-  Serial.print("  WiFi connecting to "); Serial.print(WIFI_SSID); Serial.print(" ...");
+  Serial.print("  [MAKUMBURA] WiFi connecting to "); Serial.print(WIFI_SSID); Serial.print(" ...");
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
@@ -271,7 +271,7 @@ void connectWiFi() {
 
 void connectMQTT() {
   if (!wifiConnected) return;
-  Serial.print("  MQTT connecting ... ");
+  Serial.print("  [MAKUMBURA] MQTT connecting ... ");
 
 #if MQTT_USE_INSECURE
   secureClient.setInsecure();   // skip CA verification (simple setup)
@@ -279,7 +279,7 @@ void connectMQTT() {
 
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setBufferSize(512);
-  mqttClient.setKeepAlive(60); // INCREASED FROM 30 to 60 to prevent TLS drop-offs
+  mqttClient.setKeepAlive(60); // Prevent TLS drop-offs
 
   // DYNAMIC CLIENT ID: prevents HiveMQ from kicking us out if a "ghost" session is open
   String dynamicClientId = String(MQTT_CLIENT_ID) + "_" + String(random(0xffff), HEX);
@@ -289,7 +289,7 @@ void connectMQTT() {
     Serial.println("connected!");
     // Publish online status
     mqttClient.publish(TOPIC_STATUS,
-      "{\"status\":\"online\",\"device\":\"ESP32_SIMULATOR_SIM01\"}", true);
+      "{\"status\":\"online\",\"device\":\"ESP32_MAKUMBURA_MKB01\",\"station\":\"Makumbura\"}", true);
   } else {
     mqttConnected = false;
     Serial.print("failed, rc="); Serial.println(mqttClient.state());
@@ -297,17 +297,17 @@ void connectMQTT() {
 }
 
 void publishSensor(const char* topic, const SensorData& d) {
-  char payload[120];
+  char payload[150];
   snprintf(payload, sizeof(payload),
-    "{\"x_g\":%.4f,\"z_g\":%.4f,\"x_v\":%.4f,\"z_v\":%.4f}",
+    "{\"station\":\"Makumbura\",\"x_g\":%.4f,\"z_g\":%.4f,\"x_v\":%.4f,\"z_v\":%.4f}",
     d.x_g, d.z_g, d.x_voltage, d.z_voltage);
   mqttClient.publish(topic, payload);
 }
 
 void publishStatus(uint32_t idx) {
-  char payload[160];
+  char payload[200];
   snprintf(payload, sizeof(payload),
-    "{\"sample\":%lu,\"sd\":%s,\"wifi\":%s,\"mqtt\":%s}",
+    "{\"station\":\"Makumbura\",\"sample\":%lu,\"sd\":%s,\"wifi\":%s,\"mqtt\":%s}",
     (unsigned long)idx,
     sdReady      ? "true" : "false",
     wifiConnected ? "true" : "false",
@@ -319,7 +319,7 @@ void publishStatus(uint32_t idx) {
 // CORE 0 TASK — WiFi + MQTT
 // ═════════════════════════════════════════════════════════════════════════════
 void mqttTask(void* pvParameters) {
-  Serial.println("[Core 0] MQTT task started.");
+  Serial.println("[Core 0] MAKUMBURA MQTT task started.");
   connectWiFi();
   connectMQTT();
 
@@ -379,7 +379,7 @@ void setup() {
   Serial.begin(115200);
   randomSeed(analogRead(0)); // Initialize randomness for dynamic Client ID
   
-  Serial.println("\n=== Dual ADXL335 | ADS1115 | SD + MQTT | ESP32 Dual-Core ===\n");
+  Serial.println("\n=== MAKUMBURA STATION | Dual ADXL335 | ADS1115 | SD + MQTT | ESP32 ===\n");
   Serial.print("Running on Core "); Serial.println(xPortGetCoreID());
 
   // ── Mutex for shared sensor data ───────────────────────────────────────────
@@ -403,8 +403,8 @@ void setup() {
   // ── Launch MQTT task on Core 0 ─────────────────────────────────────────────
   xTaskCreatePinnedToCore(
     mqttTask,       // function
-    "MQTT_Task",    // name
-    16384,          // stack size INCREASED from 8192 to 16384 for heavy TLS Handshakes
+    "MKB_MQTT",     // name (Makumbura MQTT)
+    16384,          // stack size (for TLS handshakes)
     NULL,           // params
     1,              // priority
     NULL,           // handle
@@ -415,7 +415,7 @@ void setup() {
   lastFlushTime   = millis();
   lastSDRetryTime = millis();
 
-  Serial.println("Starting measurements on Core 1...\n");
+  Serial.println("Starting MAKUMBURA measurements on Core 1...\n");
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

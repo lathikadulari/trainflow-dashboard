@@ -31,7 +31,7 @@ class SensorSimulator extends EventEmitter {
             sensorDistance: 100,
 
             // Signal parameters (matching research paper scale)
-            baselineNoise: 500, // Low noise baseline
+            baselineNoise: 3000, // Visible noise baseline for analog look
             maxAmplitude: 60000, // Peak amplitude during train pass
 
             // Timing
@@ -71,29 +71,72 @@ class SensorSimulator extends EventEmitter {
         return Math.max(this.adxl335.minVoltage, Math.min(this.adxl335.maxVoltage, voltage));
     }
 
-    // DSP PIC FFT Simulation - Computes FFT for a given signal array
+    // True FFT Simulation - Computes FFT for a given signal array using Cooley-Tukey
     computeFFT(signal, sampleRate = 500) {
         const N = signal.length;
         if (N < 16) return [];
 
         // Pad to power of 2
         const paddedLength = Math.pow(2, Math.ceil(Math.log2(N)));
-        const padded = [...signal];
-        while (padded.length < paddedLength) padded.push(0);
+
+        // Arrays for real and imaginary parts
+        const real = new Float64Array(paddedLength);
+        const imag = new Float64Array(paddedLength);
+
+        for (let i = 0; i < N; i++) {
+            real[i] = signal[i];
+        }
+
+        // Bit-reversal permutation
+        let j = 0;
+        for (let i = 0; i < paddedLength - 1; i++) {
+            if (i < j) {
+                let temp = real[i];
+                real[i] = real[j];
+                real[j] = temp;
+            }
+            let m = paddedLength >> 1;
+            while (m <= j) {
+                j -= m;
+                m >>= 1;
+            }
+            j += m;
+        }
+
+        // Cooley-Tukey decimation-in-time radix-2 FFT
+        for (let i = 1; i < paddedLength; i <<= 1) {
+            const step = i << 1;
+            const theta = -Math.PI / i;
+            const wTemp = Math.sin(0.5 * theta);
+            const wR = -2.0 * wTemp * wTemp;
+            const wI = Math.sin(theta);
+
+            for (let m = 0; m < paddedLength; m += step) {
+                let wr = 1.0;
+                let wi = 0.0;
+                for (let k = 0; k < i; k++) {
+                    const idx1 = m + k;
+                    const idx2 = m + k + i;
+                    const tr = wr * real[idx2] - wi * imag[idx2];
+                    const ti = wr * imag[idx2] + wi * real[idx2];
+                    real[idx2] = real[idx1] - tr;
+                    imag[idx2] = imag[idx1] - ti;
+                    real[idx1] += tr;
+                    imag[idx1] += ti;
+
+                    const wtr = wr * wR - wi * wI + wr;
+                    const wti = wi * wR + wr * wI + wi;
+                    wr = wtr;
+                    wi = wti;
+                }
+            }
+        }
 
         const results = [];
 
-        // DFT computation (simulating DSP PIC processing)
+        // Calculate magnitudes and apply bandpass filter (positive frequencies only)
         for (let k = 0; k < paddedLength / 2; k++) {
-            let realSum = 0, imagSum = 0;
-
-            for (let n = 0; n < paddedLength; n++) {
-                const angle = (2 * Math.PI * k * n) / paddedLength;
-                realSum += padded[n] * Math.cos(angle);
-                imagSum -= padded[n] * Math.sin(angle);
-            }
-
-            const magnitude = Math.sqrt(realSum * realSum + imagSum * imagSum) / paddedLength;
+            const magnitude = Math.sqrt(real[k] * real[k] + imag[k] * imag[k]) / paddedLength;
             const frequency = (k * sampleRate) / paddedLength;
 
             // Filter to 10-500 Hz range (relevant for train vibration)
@@ -140,13 +183,31 @@ class SensorSimulator extends EventEmitter {
         };
     }
 
-    // Generate baseline noise (no train)
+    // Generate baseline noise (no train) - realistic analog accelerometer output
+    // Uses LOW frequencies (0.3-5 Hz) visible at display sample rate (~50 Hz)
     generateBaseline() {
         const noise = this.config.baselineNoise;
+        const t = this.timeCounter / 1000; // time in seconds
+
+        // Primary slow oscillations — clearly visible as smooth AC waves
+        const wave1X = Math.sin(2 * Math.PI * 1.2 * t) * noise * 0.5;
+        const wave1Y = Math.sin(2 * Math.PI * 0.8 * t) * noise * 0.45;
+        const wave1Z = Math.sin(2 * Math.PI * 1.5 * t) * noise * 0.4;
+
+        // Secondary oscillation (slightly faster)
+        const wave2X = Math.sin(2 * Math.PI * 3.1 * t + 0.7) * noise * 0.3;
+        const wave2Y = Math.sin(2 * Math.PI * 2.5 * t + 1.2) * noise * 0.25;
+        const wave2Z = Math.sin(2 * Math.PI * 3.7 * t + 0.3) * noise * 0.2;
+
+        // Fine texture — fast but small amplitude for AC texture
+        const wave3X = Math.sin(2 * Math.PI * 5.0 * t) * noise * 0.15;
+        const wave3Y = Math.sin(2 * Math.PI * 4.3 * t) * noise * 0.12;
+        const wave3Z = Math.sin(2 * Math.PI * 5.5 * t) * noise * 0.1;
+
         return {
-            x: this.gaussianRandom(0, noise * 0.3),
-            y: this.gaussianRandom(0, noise * 0.3),
-            z: this.gaussianRandom(0, noise * 0.2),
+            x: wave1X + wave2X + wave3X + this.gaussianRandom(0, noise * 0.1),
+            y: wave1Y + wave2Y + wave3Y + this.gaussianRandom(0, noise * 0.08),
+            z: wave1Z + wave2Z + wave3Z + this.gaussianRandom(0, noise * 0.06),
         };
     }
 
@@ -361,19 +422,22 @@ class SensorSimulator extends EventEmitter {
         if (this.isRunning) return;
         this.isRunning = true;
 
-        // Send data at 50Hz for display (downsample from 500Hz internal)
-        let counter = 0;
+        // Batch samples and emit at 50Hz for smooth analog waveforms
+        // Collect 10 samples per batch (500Hz / 10 = 50 SSE events/sec)
+        let batch = [];
         this.intervalId = setInterval(() => {
             const data = this.generateSensorData();
-            counter++;
-            if (counter % 10 === 0) { // Every 10th sample = 50Hz
-                this.emit('data', data);
+            batch.push(data);
+            if (batch.length >= 10) {
+                // Emit the full batch so the frontend gets dense waveform data
+                this.emit('data', { batch });
+                batch = [];
             }
         }, 1000 / this.config.sampleRate);
 
         this.scheduleRandomTrain();
         this.emit('started');
-        console.log('Sensor simulation started (research-matched mode)');
+        console.log('Sensor simulation started (research-matched mode, batched output)');
     }
 
     scheduleRandomTrain() {

@@ -31,8 +31,8 @@ The sketch is pre-configured with:
 - **WiFi Password**: `OnTheWay`
 - **MQTT Broker**: HiveMQ Cloud (8102284b29c24b4eb40e06ac182d1130.s1.eu.hivemq.cloud)
 - **MQTT Port**: 8883 (TLS)
-- **MQTT Username**: `lathika`
-- **MQTT Password**: `Lathika2002`
+- **MQTT Username**: `dulari`
+- **MQTT Password**: `Dulari@123`
 
 ## Upload Instructions
 
