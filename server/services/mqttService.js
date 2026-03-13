@@ -13,6 +13,11 @@ let messageCallback = null;
 let lastEsp32DataTime = 0;
 const ESP32_TIMEOUT_MS = 5000; // 5 seconds timeout
 
+// Track if we've already logged certain messages to avoid spam
+let hasLoggedInitialConnection = false;
+let hasLoggedConnectionError = false;
+let hasLoggedTimeout = false;
+
 // Check if ESP32 is online (received data within timeout)
 const getEsp32Status = () => {
     if (lastEsp32DataTime === 0) return 'offline';
@@ -137,7 +142,7 @@ const computeAllFFT = () => {
 };
 
 const connectMQTT = () => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         // HiveMQ Cloud connection options - loaded inside function to ensure env vars are available
         const options = {
             host: process.env.MQTT_HOST,
@@ -145,26 +150,35 @@ const connectMQTT = () => {
             protocol: 'mqtts',
             username: process.env.MQTT_USERNAME,
             password: process.env.MQTT_PASSWORD,
-            rejectUnauthorized: true
+            rejectUnauthorized: true,
+            // Resilient reconnection settings
+            reconnectPeriod: 5000,      // Try to reconnect every 5 seconds
+            connectTimeout: 10000,       // 10 second connection timeout
+            keepalive: 60               // Keep alive ping every 60 seconds
         };
 
-        console.log('Connecting to HiveMQ Cloud...');
-        console.log('Host:', options.host);
-        console.log('Port:', options.port);
-        console.log('Username:', options.username);
+        if (!hasLoggedInitialConnection) {
+            console.log('MQTT: Initializing connection to HiveMQ Cloud...');
+            console.log('MQTT: Host:', options.host);
+            console.log('MQTT: Will retry silently in background if unavailable');
+            hasLoggedInitialConnection = true;
+        }
 
         client = mqtt.connect(options);
 
         client.on('connect', () => {
-            console.log('Connected to HiveMQ Cloud successfully!');
+            console.log('MQTT: Connected to HiveMQ Cloud successfully!');
             isConnected = true;
+            // Reset error logging flags on successful connection
+            hasLoggedConnectionError = false;
+            hasLoggedTimeout = false;
 
             // Subscribe to train-related topics
             client.subscribe('trainflow/#', (err) => {
                 if (err) {
-                    console.error('Subscription error:', err);
+                    console.error('MQTT: Subscription error:', err.message);
                 } else {
-                    console.log('Subscribed to trainflow/# topics');
+                    console.log('MQTT: Subscribed to trainflow/# topics');
                 }
             });
             client.subscribe('adxl335/#', (err) => {
@@ -179,17 +193,29 @@ const connectMQTT = () => {
         });
 
         client.on('error', (error) => {
-            console.error('MQTT Connection error:', error);
+            // Only log the first error, then stay silent to avoid spam
+            if (!hasLoggedConnectionError) {
+                console.log('MQTT: Connection unavailable - will keep retrying silently');
+                hasLoggedConnectionError = true;
+            }
             isConnected = false;
+            // Don't reject - let the client keep trying to reconnect
         });
 
         client.on('close', () => {
-            console.log('MQTT Connection closed');
+            if (isConnected) {
+                console.log('MQTT: Connection closed - will attempt to reconnect');
+            }
             isConnected = false;
         });
 
         client.on('reconnect', () => {
-            console.log('Attempting to reconnect to MQTT...');
+            // Silent reconnection - no logging to avoid spam
+        });
+
+        client.on('offline', () => {
+            // Silent offline handling
+            isConnected = false;
         });
 
         client.on('message', (topic, message) => {
@@ -256,11 +282,14 @@ const connectMQTT = () => {
             }
         });
 
-        // Set a timeout for initial connection
+        // Set a timeout for initial connection - resolve anyway to not block server
         setTimeout(() => {
             if (!isConnected) {
-                console.log('MQTT connection timeout - will keep trying in background');
-                resolve(null);
+                if (!hasLoggedTimeout) {
+                    console.log('MQTT: Initial connection timeout - server will continue, MQTT retries in background');
+                    hasLoggedTimeout = true;
+                }
+                resolve(null); // Resolve with null, don't reject
             }
         }, 10000);
     });

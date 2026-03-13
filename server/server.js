@@ -10,14 +10,8 @@ dotenv.config();
 // Connect to MongoDB
 connectDB();
 
-// Connect to HiveMQ Cloud MQTT
-mqttService.connectMQTT().then((client) => {
-    if (client) {
-        console.log('MQTT service started successfully');
-    }
-}).catch(err => {
-    console.log('MQTT connection deferred:', err.message);
-});
+// Connect to HiveMQ Cloud MQTT (non-blocking, retries in background)
+mqttService.connectMQTT();
 
 const app = express();
 

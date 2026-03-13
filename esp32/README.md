@@ -54,7 +54,7 @@ The sketch is pre-configured with:
 
 7. Open Serial Monitor:
    - `Tools > Serial Monitor`
-   - Set baud rate to `115200`
+   - Set baud rate to `921600`
 
 ## What the Sketch Does
 
