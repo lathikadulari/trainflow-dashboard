@@ -1,490 +1,477 @@
 /*
- * Wiring:
- * ADS1115 -> ESP32:
- *   VDD -> 3.3V
- *   GND -> GND
- *   SCL -> GPIO22
- *   SDA -> GPIO21
- * 
- * ADXL335 Sensor A (Sensor 1):
- *   Z -> ADS1115 A0
- *   Y -> ADS1115 A1
- *   X -> Not connected (displays 0)
- * 
- * ADXL335 Sensor B (Sensor 2):
- *   Z -> ADS1115 A2
- *   Y -> ADS1115 A3 (Assumed for 'Sensor 4 A4' request)
- *   X -> Not connected (displays 0)
- * 
- * Required Libraries (install via Arduino Library Manager):
- * - PubSubClient by Nick O'Leary
- * - WiFiClientSecure (built-in with ESP32)
- * - Adafruit ADS1X15 by Adafruit
- * - ArduinoJson by Benoit Blanchon
- */
+  ============================================================
+  Dual ADXL335 — ADS1115 — ESP32 Dual-Core
+  SD Card Logging  +  HiveMQ Cloud MQTT (TLS)
+  ID: 3F8Z2QW (FIXED VERSION)
+  ============================================================
 
+  CORE ASSIGNMENT:
+    Core 0 (MQTT Task) → WiFi connect, TLS MQTT publish, reconnect
+    Core 1 (Main Loop) → Sensor read, SD log, serial print
+
+  I2C WIRING (ESP32 ↔ ADS1115):
+    GPIO21 SDA  →  ADS1115 SDA
+    GPIO22 SCL  →  ADS1115 SCL
+    3.3V        →  ADS1115 VDD
+    GND         →  ADS1115 GND
+    ADDR        →  GND  (I2C: 0x48)
+
+  SPI WIRING (ESP32 ↔ SD Card):
+    GPIO18  →  CS
+    GPIO23  →  SCK
+    GPIO5   →  MOSI
+    GPIO19  →  MISO
+    3.3V    →  VCC
+    GND     →  GND
+
+  ADXL335 → ADS1115 CHANNELS:
+    A0 → Sensor 1 X-axis   A1 → Sensor 1 Z-axis
+    A2 → Sensor 2 X-axis   A3 → Sensor 2 Z-axis
+
+  MQTT TOPICS:
+    adxl335/sensor1   → {"x_g":..., "z_g":..., "x_v":..., "z_v":...}
+    adxl335/sensor2   → {"x_g":..., "z_g":..., "x_v":..., "z_v":...}
+    adxl335/status    → {"sample":..., "sd":..., "wifi":..., "mqtt":...}
+
+  LIBRARIES (Arduino Library Manager):
+    → "Adafruit ADS1X15"  by Adafruit
+    → "PubSubClient"      by Nick O'Leary
+    → SD + SPI + WiFi + WiFiClientSecure (built-in ESP32 core)
+  ============================================================
+*/
+
+#include <Wire.h>
+#include <SPI.h>
+#include <SD.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
-#include <ArduinoJson.h>
-#include <Wire.h>
 #include <Adafruit_ADS1X15.h>
 
-// ============= WIFI CONFIGURATION =============
-const char* ssid = "test";
-const char* password = "12345678";
+// ── WiFi ──────────────────────────────────────────────────────────────────────
+const char* WIFI_SSID     = "Lathika 4G";       // ← change
+const char* WIFI_PASSWORD = "asdf12345";   // ← change
 
-// ============= HIVEMQ CLOUD CONFIGURATION =============
-const char* mqtt_server = "8102284b29c24b4eb40e06ac182d1130.s1.eu.hivemq.cloud";
-const int mqtt_port = 8883;
-const char* mqtt_username = "lathika";
-const char* mqtt_password = "Lathika2002";
+// ── HiveMQ Cloud MQTT (TLS port 8883) ────────────────────────────────────────
+const char* MQTT_SERVER   = "8102284b29c24b4eb40e06ac182d1130.s1.eu.hivemq.cloud";
+const int   MQTT_PORT     = 8883;
+const char* MQTT_USER     = "lathika";
+const char* MQTT_PASS     = "Lathika2002";
+const char* MQTT_CLIENT_ID = "ESP32_ADXL335_3F8Z2QW";
 
-// MQTT Topics
-const char* topic_sensorA = "trainflow/sensor/A";
-const char* topic_sensorB = "trainflow/sensor/B";
-const char* topic_status = "trainflow/status";
+// HiveMQ Cloud uses a trusted CA — set to insecure for simplicity
+// To use full cert verification, paste HiveMQ's root CA below
+#define MQTT_USE_INSECURE true
 
-// HiveMQ Cloud Root CA Certificate
-const char* root_ca = R"EOF(
------BEGIN CERTIFICATE-----
-MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
-TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
-cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
-WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJu
-ZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBY
-MTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygc
-h77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+
-0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6U
-A5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sW
-T8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyH
-B5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UC
-B5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUv
-KBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWn
-OlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTn
-jh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbw
-qHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CI
-rU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNV
-HRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkq
-hkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZL
-ubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ
-3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KK
-NFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5
-ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7Ur
-TkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdC
-jNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVc
-oyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq
-4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPA
-mRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57d
-emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
------END CERTIFICATE-----
-)EOF";
+// ── MQTT Topics ───────────────────────────────────────────────────────────────
+const char* TOPIC_S1     = "adxl335/sensor1";
+const char* TOPIC_S2     = "adxl335/sensor2";
+const char* TOPIC_STATUS = "adxl335/status";
 
-// ============= SENSOR CONFIGURATION =============
-const float SAMPLE_RATE = 50.0;  // 50 Hz sampling rate
+// ── I2C Pins ──────────────────────────────────────────────────────────────────
+#define SDA_PIN  21
+#define SCL_PIN  22
 
-// ADXL335 Specifications
-const float VCC = 3.3;                    // Supply voltage
-const float ZERO_G_VOLTAGE = 1.65;        // Voltage at 0g (VCC/2)
-const float SENSITIVITY = 0.33;           // 330mV/g for ADXL335
+// ── SPI / SD Pins ─────────────────────────────────────────────────────────────
+#define SD_CS    18
+#define SD_SCK   23
+#define SD_MOSI   5
+#define SD_MISO  19
 
-// ADS1115 Configuration
-const float ADS_GAIN_VOLTAGE = 4.096;     // Using GAIN_ONE (±4.096V range)
-const float ADS_MAX_VALUE = 32767.0;      // 16-bit signed max value
+// ── ADS1115 ───────────────────────────────────────────────────────────────────
+#define ADS_ADDRESS  0x48
 
-// ADS1115 Object
+// ── ADXL335 Calibration ───────────────────────────────────────────────────────
+const float SUPPLY_VOLTAGE = 3.3f;
+const float ZERO_G_VOLTAGE = SUPPLY_VOLTAGE / 2.0f;
+const float SENSITIVITY_V  = 0.300f;
+
+// ── Timing ────────────────────────────────────────────────────────────────────
+const uint32_t SAMPLE_INTERVAL_MS   = 100;    // 10 Hz
+const uint32_t SD_FLUSH_INTERVAL_MS = 1000;   // flush SD every 1 s
+const uint32_t MQTT_PUBLISH_INTERVAL = 200;   // publish every 200 ms (5 Hz)
+const uint32_t WIFI_RETRY_INTERVAL  = 5000;   // WiFi retry interval
+const uint32_t MQTT_RETRY_INTERVAL  = 3000;   // MQTT reconnect interval
+const uint8_t  SD_MAX_RETRIES       = 5;
+
+// ── SD Buffer ─────────────────────────────────────────────────────────────────
+#define BUFFER_ROWS  10
+const char* LOG_FILE = "/data.csv";
+
+// ── Shared Data (Core 0 ↔ Core 1) ────────────────────────────────────────────
+// Protected by mutex — Core 1 writes, Core 0 reads for MQTT publish
+struct SensorData {
+  float x_g, z_g;
+  float x_voltage, z_voltage;
+};
+
+struct SharedState {
+  SensorData s1;
+  SensorData s2;
+  uint32_t   sampleIndex;
+  bool       sdReady;
+  bool       dataFresh;   // true when new data is ready to publish
+};
+
+SemaphoreHandle_t dataMutex;
+SharedState       shared;
+
+// ── Globals (Core 1 owned) ────────────────────────────────────────────────────
 Adafruit_ADS1115 ads;
-bool adsConnected = false;
+bool     sdReady      = false;
+uint8_t  sdRetryCount = 0;
+uint32_t sampleIndex  = 0;
+String   csvBuffer    = "";
+uint8_t  bufferedRows = 0;
 
-// Train detection state
-String trainPhase = "idle";
-String trainDirection = "";
-float trainSpeed = 0;
-bool trainDetected = false;
-unsigned long trainStartTime = 0;
-unsigned long lastPublishTime = 0;
+uint32_t lastSampleTime   = 0;
+uint32_t lastFlushTime    = 0;
+uint32_t lastSDRetryTime  = 0;
 
-// Threshold for train detection (adjust based on your setup)
-const float VIBRATION_THRESHOLD = 0.15;  // g-force threshold for train detection
-const float NOISE_THRESHOLD = 0.05;      // Below this is considered noise
+// ── Globals (Core 0 owned) ────────────────────────────────────────────────────
+WiFiClientSecure secureClient;
+PubSubClient     mqttClient(secureClient);
 
-// Moving average for noise filtering
-#define FILTER_SAMPLES 5
-float xA_samples[FILTER_SAMPLES] = {0};
-float yA_samples[FILTER_SAMPLES] = {0};
-float zA_samples[FILTER_SAMPLES] = {0};
-float xB_samples[FILTER_SAMPLES] = {0};
-float yB_samples[FILTER_SAMPLES] = {0};
-float zB_samples[FILTER_SAMPLES] = {0};
-int sampleIndex = 0;
+bool     wifiConnected = false;
+bool     mqttConnected = false;
+uint32_t lastWifiRetry = 0;
+uint32_t lastMqttRetry = 0;
+uint32_t lastPublish   = 0;
 
-// WiFi and MQTT clients
-WiFiClientSecure espClient;
-PubSubClient client(espClient);
+// ═════════════════════════════════════════════════════════════════════════════
+// SENSOR HELPERS (Core 1)
+// ═════════════════════════════════════════════════════════════════════════════
+float rawToVoltage(int16_t raw) { return raw * 0.000125f; }
+float voltageToG(float v)       { return (v - ZERO_G_VOLTAGE) / SENSITIVITY_V; }
 
-// ============= HELPER FUNCTIONS =============
-
-// Convert ADS1115 raw value to voltage
-float adsToVoltage(int16_t rawValue) {
-  return (rawValue * ADS_GAIN_VOLTAGE) / ADS_MAX_VALUE;
+SensorData readSensor(uint8_t ch_x, uint8_t ch_z) {
+  SensorData d;
+  d.x_voltage = rawToVoltage(ads.readADC_SingleEnded(ch_x));
+  d.z_voltage = rawToVoltage(ads.readADC_SingleEnded(ch_z));
+  d.x_g       = voltageToG(d.x_voltage);
+  d.z_g       = voltageToG(d.z_voltage);
+  return d;
 }
 
-// Convert voltage to g-force for ADXL335
-float voltageToG(float voltage) {
-  return (voltage - ZERO_G_VOLTAGE) / SENSITIVITY;
+// ═════════════════════════════════════════════════════════════════════════════
+// SD HELPERS (Core 1)
+// ═════════════════════════════════════════════════════════════════════════════
+void printSDInfo() {
+  uint8_t  t  = SD.cardType();
+  uint32_t mb = (uint32_t)(SD.cardSize() / (1024 * 1024));
+  Serial.print("  Card : ");
+  if      (t == CARD_MMC)  Serial.println("MMC");
+  else if (t == CARD_SD)   Serial.println("SDSC");
+  else if (t == CARD_SDHC) Serial.println("SDHC");
+  else                     Serial.println("UNKNOWN");
+  Serial.print("  Size : "); Serial.print(mb); Serial.println(" MB");
 }
 
-// Apply moving average filter
-float applyFilter(float newValue, float* samples) {
-  samples[sampleIndex] = newValue;
-  float sum = 0;
-  for (int i = 0; i < FILTER_SAMPLES; i++) {
-    sum += samples[i];
+void writeCSVHeader() {
+  File f = SD.open(LOG_FILE, FILE_APPEND);
+  if (!f) return;
+  if (f.size() == 0) {
+    f.println("sample_index,s1_x_g,s1_z_g,s1_x_v,s1_z_v,s2_x_g,s2_z_g,s2_x_v,s2_z_v");
+    Serial.println("  SD: header written.");
+  } else {
+    Serial.print("  SD: appending (");
+    Serial.print((uint32_t)f.size()); Serial.println(" bytes).");
   }
-  return sum / FILTER_SAMPLES;
+  f.close();
 }
 
-// Read sensor data from ADS1115
-void readSensors(float* xA, float* yA, float* zA, float* xB, float* yB, float* zB) {
-  if (!adsConnected) {
-    // If ADS1115 not connected, return zeros
-    *xA = 0; *yA = 0; *zA = 0;
-    *xB = 0; *yB = 0; *zB = 0;
-    return;
+bool tryInitSD() {
+  SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (SD.begin(SD_CS, SPI, 4000000)) {
+    printSDInfo();
+    writeCSVHeader();
+    return true;
   }
-  
-  // Read all 4 channels from ADS1115
-  int16_t rawA0 = ads.readADC_SingleEnded(0);  // Sensor A - Z (A0)
-  int16_t rawA1 = ads.readADC_SingleEnded(1);  // Sensor A - Y (A1)
-  int16_t rawA2 = ads.readADC_SingleEnded(2);  // Sensor B - Z (A2)
-  int16_t rawA3 = ads.readADC_SingleEnded(3);  // Sensor B - Y (A3 assumed)
-  
-  // Convert to voltage
-  float voltA0 = adsToVoltage(rawA0);
-  float voltA1 = adsToVoltage(rawA1);
-  float voltA2 = adsToVoltage(rawA2);
-  float voltA3 = adsToVoltage(rawA3);
-  
-  // Convert to g-force
-  float rawZA = voltageToG(voltA0);  // A0 -> Z
-  float rawYA = voltageToG(voltA1);  // A1 -> Y
-  float rawZB = voltageToG(voltA2);  // A2 -> Z
-  float rawYB = voltageToG(voltA3);  // A3 -> Y
-  
-  // Apply moving average filter
-  *zA = applyFilter(rawZA, zA_samples);
-  *yA = applyFilter(rawYA, yA_samples);
-  *zB = applyFilter(rawZB, zB_samples);
-  *yB = applyFilter(rawYB, yB_samples);
-  
-  // X axis not connected - display 0
-  *xA = 0.0;
-  *xB = 0.0;
-  
-  // Update sample index for moving average
-  sampleIndex = (sampleIndex + 1) % FILTER_SAMPLES;
+  SD.end();
+  return false;
 }
 
-// Convert g-force to raw value for compatibility with dashboard
-float gToRaw(float gForce) {
-  // Scale g-force to match the dashboard's expected range
-  // Original simulator used values up to 60000
-  return gForce * 20000.0;
+void flushBufferToSD() {
+  if (csvBuffer.length() == 0) return;
+  File f = SD.open(LOG_FILE, FILE_APPEND);
+  if (!f) { Serial.println("  SD ERROR: flush failed!"); return; }
+  f.print(csvBuffer);
+  f.close();
+  csvBuffer    = "";
+  bufferedRows = 0;
 }
 
-// Convert g-force back to voltage for display
-float gToVoltage(float gForce) {
-  return ZERO_G_VOLTAGE + (gForce * SENSITIVITY);
+void bufferRow(uint32_t idx, const SensorData& s1, const SensorData& s2) {
+  csvBuffer += idx;                          csvBuffer += ',';
+  csvBuffer += String(s1.x_g, 4);           csvBuffer += ',';
+  csvBuffer += String(s1.z_g, 4);           csvBuffer += ',';
+  csvBuffer += String(s1.x_voltage, 4);     csvBuffer += ',';
+  csvBuffer += String(s1.z_voltage, 4);     csvBuffer += ',';
+  csvBuffer += String(s2.x_g, 4);           csvBuffer += ',';
+  csvBuffer += String(s2.z_g, 4);           csvBuffer += ',';
+  csvBuffer += String(s2.x_voltage, 4);     csvBuffer += ',';
+  csvBuffer += String(s2.z_voltage, 4);     csvBuffer += '\n';
+  bufferedRows++;
 }
 
-// Detect train based on vibration magnitude
-void detectTrain(float magnitudeA, float magnitudeB) {
-  float avgMagnitude = (magnitudeA + magnitudeB) / 2.0;
-  
-  static unsigned long aboveThresholdStart = 0;
-  static unsigned long belowThresholdStart = 0;
-  
-  if (avgMagnitude > VIBRATION_THRESHOLD) {
-    belowThresholdStart = 0;
-    
-    if (aboveThresholdStart == 0) {
-      aboveThresholdStart = millis();
-    }
-    
-    // Train detected after sustained vibration (500ms)
-    if (!trainDetected && (millis() - aboveThresholdStart > 500)) {
-      trainDetected = true;
-      trainPhase = "passing";
-      trainDirection = "detected";
-      trainSpeed = avgMagnitude * 100;  // Estimate speed from magnitude
-      trainStartTime = millis();
-      Serial.println(">>> TRAIN DETECTED! <<<");
-    }
-  } else if (avgMagnitude < NOISE_THRESHOLD) {
-    aboveThresholdStart = 0;
-    
-    if (trainDetected && belowThresholdStart == 0) {
-      belowThresholdStart = millis();
-    }
-    
-    // Train departed after vibration stops (1 second)
-    if (trainDetected && (millis() - belowThresholdStart > 1000)) {
-      trainDetected = false;
-      trainPhase = "idle";
-      trainDirection = "";
-      trainSpeed = 0;
-      Serial.println("Train departed.");
-    }
+// ═════════════════════════════════════════════════════════════════════════════
+// SERIAL PRINT (Core 1)
+// ═════════════════════════════════════════════════════════════════════════════
+void printReadings(uint32_t idx, const SensorData& s1, const SensorData& s2) {
+  Serial.println("--------------------------------------------------");
+  Serial.print("[#"); Serial.print(idx); Serial.print("]");
+  Serial.print("  WiFi:"); Serial.print(wifiConnected ? "OK" : "--");
+  Serial.print("  MQTT:"); Serial.println(mqttConnected ? "OK" : "--");
+
+  Serial.print("Sensor 1 | X: "); Serial.print(s1.x_g, 3);
+  Serial.print(" g (");           Serial.print(s1.x_voltage, 4);
+  Serial.print(" V)   Z: ");      Serial.print(s1.z_g, 3);
+  Serial.print(" g (");           Serial.print(s1.z_voltage, 4);
+  Serial.println(" V)");
+
+  Serial.print("Sensor 2 | X: "); Serial.print(s2.x_g, 3);
+  Serial.print(" g (");           Serial.print(s2.x_voltage, 4);
+  Serial.print(" V)   Z: ");      Serial.print(s2.z_g, 3);
+  Serial.print(" g (");           Serial.print(s2.z_voltage, 4);
+  Serial.println(" V)");
+
+  if (sdReady) {
+    Serial.print("SD: buf "); Serial.print(bufferedRows);
+    Serial.print("/"); Serial.println(BUFFER_ROWS);
+  } else {
+    Serial.println("SD: not ready");
   }
 }
 
-// ============= WIFI SETUP =============
-void setupWiFi() {
-  delay(10);
-  Serial.println();
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
+// ═════════════════════════════════════════════════════════════════════════════
+// MQTT HELPERS (Core 0)
+// ═════════════════════════════════════════════════════════════════════════════
+void connectWiFi() {
+  if (WiFi.status() == WL_CONNECTED) { wifiConnected = true; return; }
+  Serial.print("  WiFi connecting to "); Serial.print(WIFI_SSID); Serial.print(" ...");
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-    delay(500);
+  uint32_t start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 8000) {
+    vTaskDelay(200 / portTICK_PERIOD_MS);
     Serial.print(".");
-    attempts++;
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("");
-    Serial.println("WiFi connected!");
-    Serial.print("IP address: ");
+    wifiConnected = true;
+    Serial.print(" connected! IP: ");
     Serial.println(WiFi.localIP());
+    vTaskDelay(500 / portTICK_PERIOD_MS); // Give settling time for TLS compatibility
   } else {
-    Serial.println("");
-    Serial.println("WiFi connection failed!");
+    wifiConnected = false;
+    Serial.println(" failed. Will retry.");
   }
 }
 
-// ============= ADS1115 SETUP =============
-void setupADS1115() {
-  Serial.println("Initializing ADS1115...");
-  
-  Wire.begin(21, 22);  // SDA, SCL for ESP32
-  
-  if (ads.begin()) {
-    adsConnected = true;
-    Serial.println("ADS1115 connected!");
-    
-    // Set gain to GAIN_ONE for ±4.096V range
-    // This gives us good resolution for 0-3.3V ADXL335 output
-    ads.setGain(GAIN_ONE);
-    
-    Serial.println("ADS1115 configured with GAIN_ONE (±4.096V)");
+void connectMQTT() {
+  if (!wifiConnected) return;
+  Serial.print("  MQTT connecting ... ");
+
+#if MQTT_USE_INSECURE
+  secureClient.setInsecure();   // skip CA verification (simple setup)
+#endif
+
+  mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
+  mqttClient.setBufferSize(512);
+  mqttClient.setKeepAlive(60); // INCREASED FROM 30 to 60 to prevent TLS drop-offs
+
+  // DYNAMIC CLIENT ID: prevents HiveMQ from kicking us out if a "ghost" session is open
+  String dynamicClientId = String(MQTT_CLIENT_ID) + "_" + String(random(0xffff), HEX);
+
+  if (mqttClient.connect(dynamicClientId.c_str(), MQTT_USER, MQTT_PASS)) {
+    mqttConnected = true;
+    Serial.println("connected!");
+    // Publish online status
+    mqttClient.publish(TOPIC_STATUS,
+      "{\"status\":\"online\",\"device\":\"ESP32_ADXL335_3F8Z2QW\"}", true);
   } else {
-    adsConnected = false;
-    Serial.println("ERROR: ADS1115 not found! Check wiring:");
-    Serial.println("  - VDD to 3.3V");
-    Serial.println("  - GND to GND");
-    Serial.println("  - SDA to GPIO21");
-    Serial.println("  - SCL to GPIO22");
-    Serial.println("  - ADDR to GND (for address 0x48)");
+    mqttConnected = false;
+    Serial.print("failed, rc="); Serial.println(mqttClient.state());
   }
 }
 
-// ============= MQTT CALLBACK =============
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message received [");
-  Serial.print(topic);
-  Serial.print("]: ");
-  
-  String message = "";
-  for (int i = 0; i < length; i++) {
-    message += (char)payload[i];
-  }
-  Serial.println(message);
+void publishSensor(const char* topic, const SensorData& d) {
+  char payload[120];
+  snprintf(payload, sizeof(payload),
+    "{\"x_g\":%.4f,\"z_g\":%.4f,\"x_v\":%.4f,\"z_v\":%.4f}",
+    d.x_g, d.z_g, d.x_voltage, d.z_voltage);
+  mqttClient.publish(topic, payload);
 }
 
-// ============= MQTT RECONNECT =============
-void reconnect() {
-  while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    
-    String clientId = "ESP32-TrainFlow-" + String(random(1000, 9999));
-    
-    if (client.connect(clientId.c_str(), mqtt_username, mqtt_password)) {
-      Serial.println("connected!");
-      
-      // Subscribe to command topic
-      client.subscribe("trainflow/command");
-      
-      // Publish online status
-      StaticJsonDocument<150> statusDoc;
-      statusDoc["device"] = "ESP32";
-      statusDoc["status"] = "online";
-      statusDoc["ip"] = WiFi.localIP().toString();
-      statusDoc["mode"] = "real_sensors";
-      statusDoc["adsConnected"] = adsConnected;
-      
-      char statusBuffer[150];
-      serializeJson(statusDoc, statusBuffer);
-      client.publish(topic_status, statusBuffer);
-      
+void publishStatus(uint32_t idx) {
+  char payload[160];
+  snprintf(payload, sizeof(payload),
+    "{\"sample\":%lu,\"sd\":%s,\"wifi\":%s,\"mqtt\":%s}",
+    (unsigned long)idx,
+    sdReady      ? "true" : "false",
+    wifiConnected ? "true" : "false",
+    mqttConnected ? "true" : "false");
+  mqttClient.publish(TOPIC_STATUS, payload);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// CORE 0 TASK — WiFi + MQTT
+// ═════════════════════════════════════════════════════════════════════════════
+void mqttTask(void* pvParameters) {
+  Serial.println("[Core 0] MQTT task started.");
+  connectWiFi();
+  connectMQTT();
+
+  for (;;) {
+    uint32_t now = millis();
+
+    // ── WiFi watchdog ───────────────────────────────────────────────────────
+    if (WiFi.status() != WL_CONNECTED) {
+      wifiConnected = false;
+      mqttConnected = false;
+      if (now - lastWifiRetry >= WIFI_RETRY_INTERVAL) {
+        lastWifiRetry = now;
+        connectWiFi();
+      }
     } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" - retrying in 5 seconds");
-      delay(5000);
+      wifiConnected = true;
     }
+
+    // ── MQTT reconnect ──────────────────────────────────────────────────────
+    if (wifiConnected && !mqttClient.connected()) {
+      mqttConnected = false;
+      if (now - lastMqttRetry >= MQTT_RETRY_INTERVAL) {
+        lastMqttRetry = now;
+        connectMQTT();
+      }
+    } else if (mqttClient.connected()) {
+      mqttConnected = true;
+      mqttClient.loop();
+    }
+
+    // ── Publish fresh sensor data ───────────────────────────────────────────
+    if (mqttConnected && (now - lastPublish >= MQTT_PUBLISH_INTERVAL)) {
+      lastPublish = now;
+
+      // Safely copy shared data
+      if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        SensorData  s1   = shared.s1;
+        SensorData  s2   = shared.s2;
+        uint32_t    idx  = shared.sampleIndex;
+        shared.dataFresh = false;
+        xSemaphoreGive(dataMutex);
+
+        publishSensor(TOPIC_S1, s1);
+        publishSensor(TOPIC_S2, s2);
+        publishStatus(idx);
+      }
+    }
+
+    vTaskDelay(10 / portTICK_PERIOD_MS);  // yield to scheduler
   }
 }
 
-// ============= PUBLISH SENSOR DATA =============
-void publishSensorData() {
-  float xA, yA, zA, xB, yB, zB;
-  
-  // Read real sensor data
-  readSensors(&xA, &yA, &zA, &xB, &yB, &zB);
-  
-  // Calculate magnitude (using Z and Y, since X is 0)
-  float magnitudeA = sqrt(zA*zA + yA*yA);
-  float magnitudeB = sqrt(zB*zB + yB*yB);
-  
-  // Detect train based on vibration
-  detectTrain(magnitudeA, magnitudeB);
-  
-  // Convert g-force to raw values for dashboard compatibility
-  float rawXA = gToRaw(xA); // 0
-  float rawYA = gToRaw(yA);
-  float rawZA = gToRaw(zA);
-  float rawXB = gToRaw(xB); // 0
-  float rawYB = gToRaw(yB);
-  float rawZB = gToRaw(zB);
-  
-  float rawMagnitudeA = sqrt(rawXA*rawXA + rawYA*rawYA + rawZA*rawZA);
-  float rawMagnitudeB = sqrt(rawXB*rawXB + rawYB*rawYB + rawZB*rawZB);
-  
-  // Create JSON for Sensor A
-  StaticJsonDocument<350> docA;
-  docA["timestamp"] = millis();
-  docA["x"] = rawXA;  // 0
-  docA["y"] = rawYA;
-  docA["z"] = rawZA;
-  docA["magnitude"] = rawMagnitudeA;
-  
-  // Include g-force values for reference
-  JsonObject gForceA = docA.createNestedObject("gForce");
-  gForceA["x"] = xA;
-  gForceA["y"] = yA;
-  gForceA["z"] = zA;
-  
-  JsonObject voltageA = docA.createNestedObject("voltage");
-  voltageA["x"] = gToVoltage(xA);
-  voltageA["y"] = gToVoltage(yA);
-  voltageA["z"] = gToVoltage(zA);
-  
-  char bufferA[350];
-  serializeJson(docA, bufferA);
-  client.publish(topic_sensorA, bufferA);
-  
-  // Create JSON for Sensor B
-  StaticJsonDocument<350> docB;
-  docB["timestamp"] = millis();
-  docB["x"] = rawXB;  // 0
-  docB["y"] = rawYB;
-  docB["z"] = rawZB;
-  docB["magnitude"] = rawMagnitudeB;
-  
-  JsonObject gForceB = docB.createNestedObject("gForce");
-  gForceB["x"] = xB;
-  gForceB["y"] = yB;
-  gForceB["z"] = zB;
-  
-  JsonObject voltageB = docB.createNestedObject("voltage");
-  voltageB["x"] = gToVoltage(xB);
-  voltageB["y"] = gToVoltage(yB);
-  voltageB["z"] = gToVoltage(zB);
-  
-  char bufferB[350];
-  serializeJson(docB, bufferB);
-  client.publish(topic_sensorB, bufferB);
-  
-  // Publish train state
-  StaticJsonDocument<150> stateDoc;
-  stateDoc["phase"] = trainPhase;
-  stateDoc["direction"] = trainDirection;
-  stateDoc["speed"] = trainSpeed;
-  stateDoc["isApproaching"] = trainDetected;
-  stateDoc["magnitudeA"] = magnitudeA;
-  stateDoc["magnitudeB"] = magnitudeB;
-  
-  char stateBuffer[150];
-  serializeJson(stateDoc, stateBuffer);
-  client.publish("trainflow/trainState", stateBuffer);
-  
-  // Debug output every second
-  static unsigned long lastDebug = 0;
-  if (millis() - lastDebug > 1000) {
-    lastDebug = millis();
-    Serial.printf("Sensor A - X: %.3fg (NC), Y: %.3fg, Z: %.3fg | Mag: %.3fg\n", xA, yA, zA, magnitudeA);
-    Serial.printf("Sensor B - X: %.3fg (NC), Y: %.3fg, Z: %.3fg | Mag: %.3fg\n", xB, yB, zB, magnitudeB);
-    Serial.printf("Train: %s | ADS1115: %s\n", 
-                  trainDetected ? "DETECTED" : "none", 
-                  adsConnected ? "OK" : "NOT FOUND");
-    Serial.println("----------------------------------------");
-  }
-}
-
-// ============= SETUP =============
+// ═════════════════════════════════════════════════════════════════════════════
+// SETUP
+// ═════════════════════════════════════════════════════════════════════════════
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  randomSeed(analogRead(0)); // Initialize randomness for dynamic Client ID
   
-  Serial.println();
-  Serial.println("========================================");
-  Serial.println("  TrainFlow ESP32 - Real Sensors");
-  Serial.println("  ADS1115 + ADXL335 x2 (Z/Y Axis Mode)");
-  Serial.println("========================================");
-  Serial.println();
-  Serial.println("Wiring Configuration:");
-  Serial.println("  ADS1115 A0 <- Sensor 1 Z-axis");
-  Serial.println("  ADS1115 A1 <- Sensor 1 Y-axis");
-  Serial.println("  ADS1115 A2 <- Sensor 2 Z-axis");
-  Serial.println("  ADS1115 A3 <- Sensor 2 Y-axis");
-  Serial.println("  X-axis: Not connected (displays 0)");
-  Serial.println();
-  
-  randomSeed(analogRead(0));
-  
-  // Setup ADS1115
-  setupADS1115();
-  
-  // Setup WiFi
-  setupWiFi();
-  
-  // Setup MQTT with TLS
-  espClient.setCACert(root_ca);
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
-  client.setBufferSize(512);
-  
-  Serial.println();
-  Serial.println("Setup complete! Starting real sensor data streaming...");
-  Serial.println("========================================");
+  Serial.println("\n=== Dual ADXL335 | ADS1115 | SD + MQTT | ESP32 Dual-Core ===\n");
+  Serial.print("Running on Core "); Serial.println(xPortGetCoreID());
+
+  // ── Mutex for shared sensor data ───────────────────────────────────────────
+  dataMutex = xSemaphoreCreateMutex();
+
+  // ── ADS1115 (Core 1, I2C) ──────────────────────────────────────────────────
+  Serial.println("[ ADS1115 Init ]");
+  Wire.begin(SDA_PIN, SCL_PIN);
+  if (!ads.begin(ADS_ADDRESS)) {
+    Serial.println("  FATAL: ADS1115 not found! Halting.");
+    while (1);
+  }
+  ads.setGain(GAIN_ONE);
+  Serial.println("  ADS1115 OK.\n");
+
+  // ── SD Card ────────────────────────────────────────────────────────────────
+  Serial.println("[ SD Card Init ]");
+  sdReady = tryInitSD();
+  Serial.println(sdReady ? "  SD OK.\n" : "  SD not ready — retrying in loop.\n");
+
+  // ── Launch MQTT task on Core 0 ─────────────────────────────────────────────
+  xTaskCreatePinnedToCore(
+    mqttTask,       // function
+    "MQTT_Task",    // name
+    16384,          // stack size INCREASED from 8192 to 16384 for heavy TLS Handshakes
+    NULL,           // params
+    1,              // priority
+    NULL,           // handle
+    0               // Core 0
+  );
+
+  lastSampleTime  = millis();
+  lastFlushTime   = millis();
+  lastSDRetryTime = millis();
+
+  Serial.println("Starting measurements on Core 1...\n");
 }
 
-// ============= MAIN LOOP =============
+// ═════════════════════════════════════════════════════════════════════════════
+// LOOP — Core 1: Sensor read + SD log + share data
+// ═════════════════════════════════════════════════════════════════════════════
 void loop() {
-  // Ensure MQTT connection
-  if (!client.connected()) {
-    reconnect();
+  uint32_t now = millis();
+
+  // ── 1. Read sensors at SAMPLE_INTERVAL_MS ─────────────────────────────────
+  if (now - lastSampleTime >= SAMPLE_INTERVAL_MS) {
+    lastSampleTime = now;
+
+    SensorData s1 = readSensor(0, 1);
+    SensorData s2 = readSensor(2, 3);
+
+    printReadings(sampleIndex, s1, s2);
+
+    // Share with Core 0 (MQTT task)
+    if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
+      shared.s1          = s1;
+      shared.s2          = s2;
+      shared.sampleIndex = sampleIndex;
+      shared.sdReady     = sdReady;
+      shared.dataFresh   = true;
+      xSemaphoreGive(dataMutex);
+    }
+
+    // SD buffer
+    if (sdReady) {
+      bufferRow(sampleIndex, s1, s2);
+      if (bufferedRows >= BUFFER_ROWS) {
+        flushBufferToSD();
+        Serial.println("  SD: flushed (buffer full).");
+      }
+    }
+
+    sampleIndex++;
   }
-  client.loop();
-  
-  // Publish at 50Hz (every 20ms)
-  unsigned long now = millis();
-  if (now - lastPublishTime >= 20) {
-    lastPublishTime = now;
-    publishSensorData();
+
+  // ── 2. Timed SD flush ─────────────────────────────────────────────────────
+  if (sdReady && (now - lastFlushTime >= SD_FLUSH_INTERVAL_MS)) {
+    lastFlushTime = now;
+    if (bufferedRows > 0) {
+      flushBufferToSD();
+      Serial.println("  SD: flushed (timer).");
+    }
+  }
+
+  // ── 3. Non-blocking SD retry ──────────────────────────────────────────────
+  if (!sdReady && sdRetryCount < SD_MAX_RETRIES &&
+      (now - lastSDRetryTime >= 2000)) {
+    lastSDRetryTime = now;
+    sdRetryCount++;
+    Serial.print("  SD retry "); Serial.print(sdRetryCount);
+    Serial.print("/"); Serial.print(SD_MAX_RETRIES); Serial.print(" ... ");
+    sdReady = tryInitSD();
+    Serial.println(sdReady ? "OK!" : "failed.");
   }
 }

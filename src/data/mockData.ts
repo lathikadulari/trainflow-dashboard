@@ -3673,6 +3673,18 @@ export const mockStations: Station[] = [
     ],
     totalApproaches: 22
   },
+  {
+    id: '307',
+    name: 'Makumbura',
+    code: 'MAK',
+    province: 'Western',
+    line: 'Kelani Valley Line',
+    sensors: [
+      { id: 's307-1', name: 'Sensor A', status: 'online', lastPing: new Date() },
+      { id: 's307-2', name: 'Sensor B', status: 'online', lastPing: new Date() }
+    ],
+    totalApproaches: 0
+  }
 ];
 
 export const mockTrainApproaches: TrainApproach[] = [

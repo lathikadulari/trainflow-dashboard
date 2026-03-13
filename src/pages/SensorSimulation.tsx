@@ -51,7 +51,11 @@ const sensorConfig = {
     B: { color: '#d946ef', name: 'Sensor B', borderColor: 'border-fuchsia-500/30' },
 };
 
-const SensorSimulation = () => {
+export interface SensorSimulationProps {
+    isEmbedded?: boolean;
+}
+
+const SensorSimulation: React.FC<SensorSimulationProps> = ({ isEmbedded = false }) => {
     const [isRunning, setIsRunning] = useState(false);
     const [sensorAData, setSensorAData] = useState<SensorData[]>([]);
     const [sensorBData, setSensorBData] = useState<SensorData[]>([]);
@@ -65,31 +69,37 @@ const SensorSimulation = () => {
     const eventSourceRef = useRef<EventSource | null>(null);
     const fftIntervalRef = useRef<number | null>(null);
     const dataBufferRef = useRef<{ sensorA: SensorData[]; sensorB: SensorData[] }>({ sensorA: [], sensorB: [] });
-    const animationFrameRef = useRef<number | null>(null);
-    const lastUpdateRef = useRef<number>(0);
+    const latestTrainStateRef = useRef<TrainState | null>(null);
+    const [filterNoise, setFilterNoise] = useState(true);
+
     const maxDataPoints = 256;
     const sampleRate = 50;
-    const updateIntervalMs = 50; // Throttle to ~20 FPS for smooth charts
-    const latestTrainStateRef = useRef<TrainState | null>(null);
 
-    // Throttled update function to batch data updates
-    const flushDataToState = useCallback(() => {
-        const now = performance.now();
-        if (now - lastUpdateRef.current >= updateIntervalMs) {
-            const buffer = dataBufferRef.current;
-            if (buffer.sensorA.length > 0) {
-                setSensorAData(prev => [...prev, ...buffer.sensorA].slice(-maxDataPoints));
-                setSensorBData(prev => [...prev, ...buffer.sensorB].slice(-maxDataPoints));
+    // High-speed buffer flusher for real-time visualization
+    useEffect(() => {
+        if (connectionStatus !== 'connected') return;
+
+        // Flush the buffer to state at 30-50 FPS (every 20ms) for ultra-smooth graph scrolling
+        const flushBuffer = () => {
+            const newA = [...dataBufferRef.current.sensorA];
+            const newB = [...dataBufferRef.current.sensorB];
+
+            if (newA.length > 0 || newB.length > 0) {
+                setSensorAData(prev => [...prev, ...newA].slice(-maxDataPoints));
+                setSensorBData(prev => [...prev, ...newB].slice(-maxDataPoints));
+
                 dataBufferRef.current = { sensorA: [], sensorB: [] };
-                lastUpdateRef.current = now;
             }
-            // Update train state only during flush
+
             if (latestTrainStateRef.current) {
                 setTrainState(latestTrainStateRef.current);
+                latestTrainStateRef.current = null;
             }
-        }
-        animationFrameRef.current = requestAnimationFrame(flushDataToState);
-    }, [maxDataPoints]);
+        };
+
+        const interval = setInterval(flushBuffer, 20); // Down from 100ms to 20ms (50 FPS)
+        return () => clearInterval(interval);
+    }, [connectionStatus, maxDataPoints]);
 
     // Connect to local simulation stream
     const connectToStream = useCallback(() => {
@@ -177,10 +187,9 @@ const SensorSimulation = () => {
 
     const startSimulation = async () => {
         if (dataSource === 'esp32') {
-            // Connect to ESP32 live data
+            // Use real ESP32 data from MQTT string
             setIsRunning(true);
             connectToESP32Stream();
-            animationFrameRef.current = requestAnimationFrame(flushDataToState);
             // Poll FFT from MQTT buffer
             fftIntervalRef.current = window.setInterval(fetchMqttFFT, 500);
         } else {
@@ -188,7 +197,6 @@ const SensorSimulation = () => {
             await fetch(`${API_URL}/simulation/start`, { method: 'POST' });
             setIsRunning(true);
             connectToStream();
-            animationFrameRef.current = requestAnimationFrame(flushDataToState);
             fftIntervalRef.current = window.setInterval(fetchFFT, 500);
         }
     };
@@ -200,7 +208,6 @@ const SensorSimulation = () => {
         setIsRunning(false);
         eventSourceRef.current?.close();
         if (fftIntervalRef.current) clearInterval(fftIntervalRef.current);
-        if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         setConnectionStatus('disconnected');
         // Clear data when stopping
         setSensorAData([]);
@@ -240,7 +247,6 @@ const SensorSimulation = () => {
         return () => {
             eventSourceRef.current?.close();
             if (fftIntervalRef.current) clearInterval(fftIntervalRef.current);
-            if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
         };
     }, []);
 
@@ -271,7 +277,7 @@ const SensorSimulation = () => {
     };
 
     // Time-domain chart component - Memoized to prevent unnecessary re-renders
-    const TimeChart = React.memo(({ data, axis }: { data: SensorData[]; axis: 'x' | 'y' | 'z' }) => {
+    const TimeChart = React.memo(({ data, axis, dataSource }: { data: SensorData[]; axis: 'x' | 'y' | 'z'; dataSource: 'simulation' | 'esp32' }) => {
         const config = axisConfig[axis];
 
         // Memoize the prepared time data
@@ -281,7 +287,9 @@ const SensorSimulation = () => {
         );
 
         // Memoize domain to prevent axis flickering
-        const yDomain = useMemo(() => [-20000, 70000] as [number, number], []);
+        const yDomain = useMemo(() =>
+            dataSource === 'esp32' ? [-2000, 2000] as [number, number] : [-20000, 70000] as [number, number]
+            , [dataSource]);
 
         // Don't render chart if no data - prevents flash of empty chart
         if (data.length < 2) {
@@ -297,7 +305,7 @@ const SensorSimulation = () => {
                 <LineChart width={450} height={100} data={timeData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                     <XAxis dataKey="time" stroke="#666" fontSize={9} tickFormatter={v => `${(v / 1000).toFixed(1)}s`} />
-                    <YAxis stroke="#666" fontSize={9} domain={yDomain} tickFormatter={v => `${(v / 1000).toFixed(0)}k`} />
+                    <YAxis stroke="#666" fontSize={9} domain={yDomain} tickFormatter={v => dataSource === 'esp32' ? `${(v / 1000).toFixed(1)}g` : `${(v / 1000).toFixed(0)}k`} />
                     <Line type="monotone" dataKey="amplitude" stroke={config.color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
                 </LineChart>
             </div>
@@ -328,17 +336,18 @@ const SensorSimulation = () => {
         );
     });
 
-    // Sensor panel component
     const SensorPanel = ({
         sensor,
         data,
         voltage,
-        fft
+        fft,
+        dataSource
     }: {
         sensor: 'A' | 'B';
         data: SensorData[];
         voltage: VoltageData;
         fft: { x: FFTPoint[]; y: FFTPoint[]; z: FFTPoint[] } | undefined;
+        dataSource: 'simulation' | 'esp32';
     }) => {
         const config = sensorConfig[sensor];
         return (
@@ -381,7 +390,7 @@ const SensorSimulation = () => {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-1.5">
-                            <TimeChart data={data} axis={axis} />
+                            <TimeChart data={data} axis={axis} dataSource={dataSource} />
                         </CardContent>
                     </Card>
                 ))}
@@ -411,7 +420,7 @@ const SensorSimulation = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#0d1321] via-[#1a1a2e] to-[#16213e] p-4">
+        <div className={isEmbedded ? "w-full" : "min-h-screen bg-gradient-to-br from-[#0d1321] via-[#1a1a2e] to-[#16213e] p-4"}>
             <div className="max-w-7xl mx-auto space-y-4">
                 {/* Header */}
                 <div className="flex items-center justify-between bg-[#16213e]/80 backdrop-blur-sm rounded-xl p-4 border border-gray-700/30">
@@ -523,12 +532,14 @@ const SensorSimulation = () => {
                         data={sensorAData}
                         voltage={latestVoltageA}
                         fft={fftData?.sensorA}
+                        dataSource={dataSource}
                     />
                     <SensorPanel
                         sensor="B"
                         data={sensorBData}
                         voltage={latestVoltageB}
                         fft={fftData?.sensorB}
+                        dataSource={dataSource}
                     />
                 </div>
 

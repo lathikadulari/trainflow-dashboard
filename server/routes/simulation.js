@@ -82,10 +82,19 @@ router.get('/stream', (req, res) => {
     // Send initial status
     res.write(`data: ${JSON.stringify({ type: 'status', data: simulator.getStatus() })}\n\n`);
 
+    // Only start if not already running when someone connects
+    if (!simulator.isRunning) {
+        simulator.start();
+    }
+
     // Remove client on disconnect
     req.on('close', () => {
         sseClients = sseClients.filter(c => c.id !== clientId);
         console.log(`SSE client disconnected: ${clientId}`);
+        // If no clients left, stop simulator to save resources
+        if (sseClients.length === 0) {
+            simulator.stop();
+        }
     });
 });
 

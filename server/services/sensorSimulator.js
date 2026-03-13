@@ -71,29 +71,72 @@ class SensorSimulator extends EventEmitter {
         return Math.max(this.adxl335.minVoltage, Math.min(this.adxl335.maxVoltage, voltage));
     }
 
-    // DSP PIC FFT Simulation - Computes FFT for a given signal array
+    // True FFT Simulation - Computes FFT for a given signal array using Cooley-Tukey
     computeFFT(signal, sampleRate = 500) {
         const N = signal.length;
         if (N < 16) return [];
 
         // Pad to power of 2
         const paddedLength = Math.pow(2, Math.ceil(Math.log2(N)));
-        const padded = [...signal];
-        while (padded.length < paddedLength) padded.push(0);
+
+        // Arrays for real and imaginary parts
+        const real = new Float64Array(paddedLength);
+        const imag = new Float64Array(paddedLength);
+
+        for (let i = 0; i < N; i++) {
+            real[i] = signal[i];
+        }
+
+        // Bit-reversal permutation
+        let j = 0;
+        for (let i = 0; i < paddedLength - 1; i++) {
+            if (i < j) {
+                let temp = real[i];
+                real[i] = real[j];
+                real[j] = temp;
+            }
+            let m = paddedLength >> 1;
+            while (m <= j) {
+                j -= m;
+                m >>= 1;
+            }
+            j += m;
+        }
+
+        // Cooley-Tukey decimation-in-time radix-2 FFT
+        for (let i = 1; i < paddedLength; i <<= 1) {
+            const step = i << 1;
+            const theta = -Math.PI / i;
+            const wTemp = Math.sin(0.5 * theta);
+            const wR = -2.0 * wTemp * wTemp;
+            const wI = Math.sin(theta);
+
+            for (let m = 0; m < paddedLength; m += step) {
+                let wr = 1.0;
+                let wi = 0.0;
+                for (let k = 0; k < i; k++) {
+                    const idx1 = m + k;
+                    const idx2 = m + k + i;
+                    const tr = wr * real[idx2] - wi * imag[idx2];
+                    const ti = wr * imag[idx2] + wi * real[idx2];
+                    real[idx2] = real[idx1] - tr;
+                    imag[idx2] = imag[idx1] - ti;
+                    real[idx1] += tr;
+                    imag[idx1] += ti;
+
+                    const wtr = wr * wR - wi * wI + wr;
+                    const wti = wi * wR + wr * wI + wi;
+                    wr = wtr;
+                    wi = wti;
+                }
+            }
+        }
 
         const results = [];
 
-        // DFT computation (simulating DSP PIC processing)
+        // Calculate magnitudes and apply bandpass filter (positive frequencies only)
         for (let k = 0; k < paddedLength / 2; k++) {
-            let realSum = 0, imagSum = 0;
-
-            for (let n = 0; n < paddedLength; n++) {
-                const angle = (2 * Math.PI * k * n) / paddedLength;
-                realSum += padded[n] * Math.cos(angle);
-                imagSum -= padded[n] * Math.sin(angle);
-            }
-
-            const magnitude = Math.sqrt(realSum * realSum + imagSum * imagSum) / paddedLength;
+            const magnitude = Math.sqrt(real[k] * real[k] + imag[k] * imag[k]) / paddedLength;
             const frequency = (k * sampleRate) / paddedLength;
 
             // Filter to 10-500 Hz range (relevant for train vibration)

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import Header from '@/components/dashboard/Header';
 import TrainApproachCard from '@/components/dashboard/TrainApproachCard';
 import { cn } from '@/lib/utils';
+import SensorSimulation from './SensorSimulation';
 
 const StationDetails = () => {
     const { id } = useParams();
@@ -178,6 +179,15 @@ const StationDetails = () => {
                 ) : (
                     <div className="text-center py-12 text-muted-foreground bg-secondary/20 rounded-xl border border-dashed border-border">
                         <p>No active train approaches for this station.</p>
+                    </div>
+                )}
+
+                {station.name.toLowerCase() === 'makumbura' && (
+                    <div className="mt-12 mb-8">
+                        <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                            Live Sensor Graphs
+                        </h2>
+                        <SensorSimulation isEmbedded={true} />
                     </div>
                 )}
             </main>
