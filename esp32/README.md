@@ -77,6 +77,16 @@ The sketch is pre-configured with:
 | `trainflow/status` | ESP32 → Server | Device online/offline status |
 | `trainflow/command` | Server → ESP32 | Commands (trigger_train, etc.) |
 
+## Single Sensor (No SD) Setup for /sensors
+
+For your new separate setup (not Makumbura), use:
+
+- Sketch: `esp32/SingleSensorNoSD/SingleSensorNoSD.ino`
+- Publish topic: `sensorlab/sensor1`
+- Status topic: `sensorlab/status`
+
+This sketch is designed for one ADXL335 sensor (X/Y/Z) and does not use an SD card.
+
 ## Data Format
 
 ### Sensor Data

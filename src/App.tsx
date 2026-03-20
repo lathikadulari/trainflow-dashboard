@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import StationDetails from "./pages/StationDetails";
 import LineStations from "./pages/LineStations";
 import SensorSimulation from "./pages/SensorSimulation";
+import MakumburaRaw from "./pages/MakumburaRaw";
 import NotFound from "./pages/NotFound";
 
 import { AuthProvider } from "@/context/AuthContext";
@@ -31,6 +32,7 @@ const App = () => (
               <Route path="/station/:id" element={<StationDetails />} />
               <Route path="/line/:lineName" element={<LineStations />} />
               <Route path="/sensors" element={<SensorSimulation />} />
+              <Route path="/makumbura" element={<MakumburaRaw />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

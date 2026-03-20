@@ -231,6 +231,7 @@ const connectMQTT = () => {
             // Parse and store train data
             try {
                 const data = JSON.parse(messageStr);
+
                 trainData[topic] = {
                     data: data,
                     timestamp: new Date().toISOString()

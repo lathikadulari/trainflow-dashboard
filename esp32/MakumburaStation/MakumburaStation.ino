@@ -49,8 +49,8 @@
 #include <Adafruit_ADS1X15.h>
 
 // ── WiFi ──────────────────────────────────────────────────────────────────────
-const char* WIFI_SSID     = "YOUR_WIFI_SSID";     // ← change to your WiFi name
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASS";      // ← change to your WiFi password
+const char* WIFI_SSID     = "test";     // ← change to your WiFi name
+const char* WIFI_PASSWORD = "12345678";      // ← change to your WiFi password
 
 // ── HiveMQ Cloud MQTT (TLS port 8883) ────────────────────────────────────────
 const char* MQTT_SERVER    = "8102284b29c24b4eb40e06ac182d1130.s1.eu.hivemq.cloud";
@@ -89,10 +89,20 @@ const float SENSITIVITY_V  = 0.300f;
 // ── Timing ────────────────────────────────────────────────────────────────────
 const uint32_t SAMPLE_INTERVAL_MS   = 100;    // 10 Hz
 const uint32_t SD_FLUSH_INTERVAL_MS = 1000;   // flush SD every 1 s
-const uint32_t MQTT_PUBLISH_INTERVAL = 200;   // publish every 200 ms (5 Hz)
+const uint32_t MQTT_PUBLISH_INTERVAL = 100;   // max sensor publish cadence (kept at 10 Hz)
+const uint32_t STATUS_PUBLISH_INTERVAL_MS = 1000; // publish status at 1 Hz to reduce MQTT load
 const uint32_t WIFI_RETRY_INTERVAL  = 5000;   // WiFi retry interval
 const uint32_t MQTT_RETRY_INTERVAL  = 3000;   // MQTT reconnect interval
 const uint8_t  SD_MAX_RETRIES       = 5;
+
+// Guard against placeholder credentials being left unchanged.
+bool wifiConfigValid() {
+  if (!WIFI_SSID || !WIFI_PASSWORD) return false;
+  if (strlen(WIFI_SSID) == 0 || strlen(WIFI_PASSWORD) == 0) return false;
+  if (strcmp(WIFI_SSID, "YOUR_WIFI_SSID") == 0) return false;
+  if (strcmp(WIFI_PASSWORD, "YOUR_WIFI_PASS") == 0) return false;
+  return true;
+}
 
 // ── SD Buffer ─────────────────────────────────────────────────────────────────
 #define BUFFER_ROWS  10
@@ -137,6 +147,7 @@ bool     mqttConnected = false;
 uint32_t lastWifiRetry = 0;
 uint32_t lastMqttRetry = 0;
 uint32_t lastPublish   = 0;
+uint32_t lastStatusPublish = 0;
 
 // ═════════════════════════════════════════════════════════════════════════════
 // SENSOR HELPERS (Core 1)
@@ -181,8 +192,22 @@ void writeCSVHeader() {
 }
 
 bool tryInitSD() {
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH);
+
   SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
   if (SD.begin(SD_CS, SPI, 4000000)) {
+    printSDInfo();
+    writeCSVHeader();
+    return true;
+  }
+
+  // Retry with lower SPI clock for marginal cards/wiring.
+  SD.end();
+  vTaskDelay(20 / portTICK_PERIOD_MS);
+
+  SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (SD.begin(SD_CS, SPI, 1000000)) {
     printSDInfo();
     writeCSVHeader();
     return true;
@@ -247,9 +272,17 @@ void printReadings(uint32_t idx, const SensorData& s1, const SensorData& s2) {
 // MQTT HELPERS (Core 0)
 // ═════════════════════════════════════════════════════════════════════════════
 void connectWiFi() {
+  if (!wifiConfigValid()) {
+    wifiConnected = false;
+    Serial.println("  [MAKUMBURA] WiFi config invalid. Set WIFI_SSID/WIFI_PASSWORD.");
+    return;
+  }
+
   if (WiFi.status() == WL_CONNECTED) { wifiConnected = true; return; }
   Serial.print("  [MAKUMBURA] WiFi connecting to "); Serial.print(WIFI_SSID); Serial.print(" ...");
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   uint32_t start = millis();
@@ -265,7 +298,9 @@ void connectWiFi() {
     vTaskDelay(500 / portTICK_PERIOD_MS); // Give settling time for TLS compatibility
   } else {
     wifiConnected = false;
-    Serial.println(" failed. Will retry.");
+    Serial.print(" failed. status=");
+    Serial.print((int)WiFi.status());
+    Serial.println(". Will retry.");
   }
 }
 
@@ -350,20 +385,32 @@ void mqttTask(void* pvParameters) {
       mqttClient.loop();
     }
 
-    // ── Publish fresh sensor data ───────────────────────────────────────────
-    if (mqttConnected && (now - lastPublish >= MQTT_PUBLISH_INTERVAL)) {
-      lastPublish = now;
+    // ── Publish fresh sensor data (no extra points, lower latency) ─────────
+    if (mqttConnected) {
+      bool       hasFresh = false;
+      SensorData s1;
+      SensorData s2;
+      uint32_t   idx = 0;
 
-      // Safely copy shared data
       if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-        SensorData  s1   = shared.s1;
-        SensorData  s2   = shared.s2;
-        uint32_t    idx  = shared.sampleIndex;
-        shared.dataFresh = false;
+        idx = shared.sampleIndex;
+        if (shared.dataFresh) {
+          hasFresh = true;
+          s1 = shared.s1;
+          s2 = shared.s2;
+          shared.dataFresh = false;
+        }
         xSemaphoreGive(dataMutex);
+      }
 
+      if (hasFresh && (now - lastPublish >= MQTT_PUBLISH_INTERVAL)) {
+        lastPublish = now;
         publishSensor(TOPIC_S1, s1);
         publishSensor(TOPIC_S2, s2);
+      }
+
+      if (now - lastStatusPublish >= STATUS_PUBLISH_INTERVAL_MS) {
+        lastStatusPublish = now;
         publishStatus(idx);
       }
     }

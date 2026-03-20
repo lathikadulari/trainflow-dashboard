@@ -68,7 +68,10 @@ const VoltageBar = React.memo(({ voltage, color }: { voltage: number; color: str
     );
 });
 
-const VISIBLE_WINDOW = 70; // ~1.4 seconds at 50Hz — fewer points = smoother rendering
+const VISIBLE_WINDOW = 200; // Keep recent points bounded for rendering efficiency
+const TIME_WINDOW_MS = 8000; // Fixed scrolling window for real-time moving charts
+const TICK_STEP_MS = 100; // 0.1s tick grid
+const LABEL_STEP_MS = 500; // Label every 0.5s for readability
 
 const TimeChart = React.memo(({ data, axis, dataSource, sensor, onExpand }: {
     data: SensorData[]; axis: 'x' | 'y' | 'z'; dataSource: 'simulation' | 'esp32'; sensor: 'A' | 'B';
@@ -76,13 +79,18 @@ const TimeChart = React.memo(({ data, axis, dataSource, sensor, onExpand }: {
 }) => {
     const config = axisConfig[axis];
 
-    // Show latest VISIBLE_WINDOW data points — raw data, no processing
-    const timeData = useMemo(() => {
+    // Use raw incoming points (no resampling/compression) in a trailing realtime window.
+    const chartData = useMemo(() => {
         const windowed = data.slice(-VISIBLE_WINDOW);
-        return windowed.map((d, i) => ({
-            time: i * 20, // 20ms per sample at 50Hz
-            amplitude: d[axis]
-        }));
+        if (windowed.length === 0) return [];
+        const latestTs = windowed[windowed.length - 1].timestamp;
+        const minTs = latestTs - TIME_WINDOW_MS;
+        return windowed
+            .filter((d) => d.timestamp >= minTs)
+            .map((d) => ({
+                time: d.timestamp - latestTs,
+                amplitude: d[axis],
+            }));
     }, [data, axis]);
 
     if (data.length < 2) {
@@ -94,17 +102,40 @@ const TimeChart = React.memo(({ data, axis, dataSource, sensor, onExpand }: {
     }
 
     const handleClick = () => {
-        onExpand({ sensor, axis, type: 'time', data: timeData });
+        onExpand({ sensor, axis, type: 'time', data: chartData });
     };
+
+    const ticks = [];
+    for (let t = -TIME_WINDOW_MS; t <= 0; t += TICK_STEP_MS) {
+        ticks.push(t);
+    }
 
     return (
         <div className="w-full cursor-pointer" onClick={handleClick} title="Click to expand & zoom">
-            <LineChart width={580} height={130} data={timeData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                <XAxis dataKey="time" stroke="#666" fontSize={9} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}s`} />
-                <YAxis stroke="#666" fontSize={9} domain={['auto', 'auto']} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}g`} />
-                <Line type="monotone" dataKey="amplitude" stroke={config.color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
-            </LineChart>
+            <ResponsiveContainer width="100%" height={150}>
+                <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" horizontal={true} verticalCoordinatesGenerator={() => ticks} />
+                    <XAxis 
+                        dataKey="time" 
+                        stroke="#666" 
+                        fontSize={9} 
+                        domain={[-TIME_WINDOW_MS, 0]} 
+                        type="number" 
+                        ticks={ticks}
+                        tickFormatter={(v: number) => {
+                            if (v !== 0 && Math.abs(v) % LABEL_STEP_MS !== 0) return '';
+                            return v === 0 ? 'now' : `${Math.abs(v / 1000).toFixed(1)}s`;
+                        }} 
+                    />
+                    <YAxis stroke="#666" fontSize={9} domain={[-3000, 3000]} tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}g`} />
+                    <Tooltip
+                        contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #555', borderRadius: '8px', fontSize: '11px' }}
+                        labelFormatter={(v: any) => `t-${Math.abs(Number(v) / 1000).toFixed(2)}s`}
+                        formatter={(value: number) => [`${(value / 1000).toFixed(4)}g`, axis.toUpperCase()]}
+                    />
+                    <Line type="linear" dataKey="amplitude" stroke={config.color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+                </LineChart>
+            </ResponsiveContainer>
             <div className="text-center text-[9px] text-gray-600 mt-0.5">
                 🔍 Click to expand & zoom
             </div>
@@ -141,7 +172,7 @@ const FFTChart = React.memo(({ data, color, sensor, axis, onExpand }: {
                 <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                 <XAxis dataKey="frequency" stroke="#666" fontSize={8} tickFormatter={(v: number) => `${v}`} />
                 <YAxis stroke="#666" fontSize={8} domain={[0, 'auto']} />
-                <Area type="monotone" dataKey="magnitude" stroke={color} fill={color} fillOpacity={0.3} isAnimationActive={false} />
+                <Area type="monotone" dataKey="magnitude" stroke={color} fill={color} fillOpacity={0.3} isAnimationActive={false} animationDuration={0} />
             </AreaChart>
         </div>
     );
@@ -172,8 +203,8 @@ const SensorPanel = React.memo(({ sensor, data, voltage, fft, dataSource, onExpa
                     <div className="text-[10px] text-gray-400 mb-1.5 flex items-center gap-1">
                         <Cpu className="w-3 h-3" /> Analog Output (0-3.3V)
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                        {(['x', 'y', 'z'] as const).map((axis) => (
+                    <div className="grid grid-cols-2 gap-4">
+                        {(['x', 'z'] as const).map((axis) => (
                             <div key={axis} className="space-y-1">
                                 <div className="flex justify-between text-[10px]">
                                     <span style={{ color: axisConfig[axis].color }}>{axis.toUpperCase()}</span>
@@ -186,7 +217,7 @@ const SensorPanel = React.memo(({ sensor, data, voltage, fft, dataSource, onExpa
                 </CardContent>
             </Card>
 
-            {(['x', 'y', 'z'] as const).map((axis) => (
+            {(['x', 'z'] as const).map((axis) => (
                 <Card key={axis} className="bg-[#16213e] border-0">
                     <CardHeader className="py-1.5 px-3">
                         <CardTitle className="text-xs" style={{ color: axisConfig[axis].color }}>
@@ -207,7 +238,7 @@ const SensorPanel = React.memo(({ sensor, data, voltage, fft, dataSource, onExpa
                     </div>
                 </CardHeader>
                 <CardContent className="p-2 space-y-2">
-                    {(['x', 'y', 'z'] as const).map((axis) => (
+                    {(['x', 'z'] as const).map((axis) => (
                         <div key={axis}>
                             <div className="text-[10px] mb-1" style={{ color: axisConfig[axis].color }}>
                                 {axisConfig[axis].name} FFT
@@ -235,7 +266,7 @@ const ExpandedChartModal = React.memo(({ expandedChart, onClose, sensorAData, se
     const xKey = type === 'time' ? 'time' : 'frequency';
 
     const MODAL_SAMPLE_RATE = 50;
-    const MODAL_WINDOW = 150; // Show last ~3 seconds in expanded view
+    const MODAL_WINDOW = 400; // Show last ~8 seconds in expanded view at 50Hz
 
     const [modalPaused, setModalPaused] = useState(false);
     const pausedDataRef = useRef<any[] | null>(null);
@@ -252,11 +283,14 @@ const ExpandedChartModal = React.memo(({ expandedChart, onClose, sensorAData, se
 
     // Get live data — raw, no processing
     const rawData = sensor === 'A' ? sensorAData : sensorBData;
+    
     const liveChartData = useMemo(() => {
         if (type === 'time') {
             const windowed = rawData.slice(-MODAL_WINDOW);
-            return windowed.map((d: any, i: number) => ({
-                time: i * 20,
+            if (windowed.length === 0) return [];
+            const t0 = windowed[0].timestamp;
+            return windowed.map((d: any) => ({
+                time: d.timestamp - t0,
                 amplitude: d[axis]
             }));
         }
@@ -440,7 +474,8 @@ const ExpandedChartModal = React.memo(({ expandedChart, onClose, sensorAData, se
                                         <XAxis
                                             dataKey={xKey} stroke="#888" fontSize={11}
                                             domain={activeXDomain} type="number" allowDataOverflow
-                                            tickFormatter={(v: number) => `${(v / 1000).toFixed(2)}s`}
+                                            tickCount={11} // Try to push more ticks locally
+                                            tickFormatter={(v: number) => `${(v / 1000).toFixed(1)}s`}
                                         />
                                         <YAxis
                                             stroke="#888" fontSize={11}
@@ -452,7 +487,7 @@ const ExpandedChartModal = React.memo(({ expandedChart, onClose, sensorAData, se
                                             labelFormatter={(v: any) => `Time: ${(Number(v) / 1000).toFixed(3)}s`}
                                             formatter={(value: number) => [`${(value / 1000).toFixed(4)}g`, axis.toUpperCase()]}
                                         />
-                                        <Line type="monotone" dataKey={yKey} stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} />
+                                        <Line type="natural" dataKey={yKey} stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} />
 
                                         {refAreaLeft !== null && refAreaRight !== null && (
                                             <ReferenceArea x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill={color} fillOpacity={0.2} />
@@ -484,7 +519,7 @@ const ExpandedChartModal = React.memo(({ expandedChart, onClose, sensorAData, se
                                             labelFormatter={(v: any) => `${v} Hz`}
                                             formatter={(value: number) => [value.toFixed(4), 'Magnitude']}
                                         />
-                                        <Area type="monotone" dataKey={yKey} stroke={color} fill={color} fillOpacity={0.3} strokeWidth={2} isAnimationActive={false} />
+                                        <Area type="monotone" dataKey={yKey} stroke={color} fill={color} fillOpacity={0.3} strokeWidth={2} isAnimationActive={false} animationDuration={0} />
 
                                         {refAreaLeft !== null && refAreaRight !== null && (
                                             <ReferenceArea x1={refAreaLeft} x2={refAreaRight} strokeOpacity={0.3} fill={color} fillOpacity={0.2} />
@@ -533,43 +568,36 @@ const SensorSimulation: React.FC<SensorSimulationProps> = ({ isEmbedded = false 
         type: 'time' | 'fft';
     } | null>(null);
 
-    const maxDataPoints = 200; // Keep a small rolling buffer — chart shows sliding window
+    const maxDataPoints = 600; // ~12 seconds at 50Hz display rate
     const sampleRate = 50;
 
-    // Throttled buffer flusher using requestAnimationFrame
-    // Update React state at ~20 FPS for smooth real-time scrolling
+    // Buffer flusher using requestAnimationFrame for smooth 60fps real-time scrolling
     const rafRef = useRef<number | null>(null);
-    const lastFlushRef = useRef<number>(0);
-    const FLUSH_INTERVAL = 50; // ms between state updates (20 FPS)
 
     useEffect(() => {
         if (connectionStatus !== 'connected') return;
 
-        const tick = (now: number) => {
-            if (now - lastFlushRef.current >= FLUSH_INTERVAL) {
-                lastFlushRef.current = now;
+        const tick = () => {
+            const newA = dataBufferRef.current.sensorA;
+            const newB = dataBufferRef.current.sensorB;
 
-                const newA = dataBufferRef.current.sensorA;
-                const newB = dataBufferRef.current.sensorB;
+            if (newA.length > 0 || newB.length > 0) {
+                // Swap the buffer atomically
+                dataBufferRef.current = { sensorA: [], sensorB: [] };
 
-                if (newA.length > 0 || newB.length > 0) {
-                    // Swap the buffer atomically — don't spread, just reassign
-                    dataBufferRef.current = { sensorA: [], sensorB: [] };
+                setSensorAData(prev => {
+                    const merged = prev.concat(newA);
+                    return merged.length > maxDataPoints ? merged.slice(-maxDataPoints) : merged;
+                });
+                setSensorBData(prev => {
+                    const merged = prev.concat(newB);
+                    return merged.length > maxDataPoints ? merged.slice(-maxDataPoints) : merged;
+                });
+            }
 
-                    setSensorAData(prev => {
-                        const merged = prev.concat(newA);
-                        return merged.length > maxDataPoints ? merged.slice(-maxDataPoints) : merged;
-                    });
-                    setSensorBData(prev => {
-                        const merged = prev.concat(newB);
-                        return merged.length > maxDataPoints ? merged.slice(-maxDataPoints) : merged;
-                    });
-                }
-
-                if (latestTrainStateRef.current) {
-                    setTrainState(latestTrainStateRef.current);
-                    latestTrainStateRef.current = null;
-                }
+            if (latestTrainStateRef.current) {
+                setTrainState(latestTrainStateRef.current);
+                latestTrainStateRef.current = null;
             }
 
             rafRef.current = requestAnimationFrame(tick);
@@ -681,14 +709,14 @@ const SensorSimulation: React.FC<SensorSimulationProps> = ({ isEmbedded = false 
             // Use real ESP32 data from MQTT string
             setIsRunning(true);
             connectToESP32Stream();
-            // Poll FFT from MQTT buffer
-            fftIntervalRef.current = window.setInterval(fetchMqttFFT, 500);
+            // Poll FFT from MQTT buffer more frequently for instant updates
+            fftIntervalRef.current = window.setInterval(fetchMqttFFT, 100);
         } else {
             // Use local simulation
             await fetch(`${API_URL}/simulation/start`, { method: 'POST' });
             setIsRunning(true);
             connectToStream();
-            fftIntervalRef.current = window.setInterval(fetchFFT, 500);
+            fftIntervalRef.current = window.setInterval(fetchFFT, 100);
         }
     };
 

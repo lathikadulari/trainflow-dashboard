@@ -31,7 +31,7 @@ class SensorSimulator extends EventEmitter {
             sensorDistance: 100,
 
             // Signal parameters (matching research paper scale)
-            baselineNoise: 3000, // Visible noise baseline for analog look
+            baselineNoise: 5000, // Boosted for visible sine-wave oscillations at idle
             maxAmplitude: 60000, // Peak amplitude during train pass
 
             // Timing
@@ -183,31 +183,28 @@ class SensorSimulator extends EventEmitter {
         };
     }
 
-    // Generate baseline noise (no train) - realistic analog accelerometer output
-    // Uses LOW frequencies (0.3-5 Hz) visible at display sample rate (~50 Hz)
+    // Generate baseline noise (no train) - matches ESP32 ADXL335 hardware
+    // ESP32 has X and Z axes only (no Y axis sensor connected)
+    // X = lateral rail vibration (low freq), Z = vertical ground vibration (higher freq)
     generateBaseline() {
         const noise = this.config.baselineNoise;
         const t = this.timeCounter / 1000; // time in seconds
 
-        // Primary slow oscillations — clearly visible as smooth AC waves
-        const wave1X = Math.sin(2 * Math.PI * 1.2 * t) * noise * 0.5;
-        const wave1Y = Math.sin(2 * Math.PI * 0.8 * t) * noise * 0.45;
-        const wave1Z = Math.sin(2 * Math.PI * 1.5 * t) * noise * 0.4;
+        // X-axis: Low frequency lateral vibration (dominant ~1.2 Hz)
+        const xSignal = Math.sin(2 * Math.PI * 1.2 * t) * noise * 0.6
+                       + Math.sin(2 * Math.PI * 2.5 * t + 0.5) * noise * 0.2
+                       + this.gaussianRandom(0, noise * 0.08);
 
-        // Secondary oscillation (slightly faster)
-        const wave2X = Math.sin(2 * Math.PI * 3.1 * t + 0.7) * noise * 0.3;
-        const wave2Y = Math.sin(2 * Math.PI * 2.5 * t + 1.2) * noise * 0.25;
-        const wave2Z = Math.sin(2 * Math.PI * 3.7 * t + 0.3) * noise * 0.2;
-
-        // Fine texture — fast but small amplitude for AC texture
-        const wave3X = Math.sin(2 * Math.PI * 5.0 * t) * noise * 0.15;
-        const wave3Y = Math.sin(2 * Math.PI * 4.3 * t) * noise * 0.12;
-        const wave3Z = Math.sin(2 * Math.PI * 5.5 * t) * noise * 0.1;
+        // Z-axis: Higher frequency vertical vibration (dominant ~2.8 Hz, distinctly different from X)
+        const zSignal = Math.sin(2 * Math.PI * 2.8 * t + 1.0) * noise * 0.5
+                       + Math.sin(2 * Math.PI * 5.2 * t + 2.1) * noise * 0.25
+                       + Math.sin(2 * Math.PI * 0.6 * t) * noise * 0.15
+                       + this.gaussianRandom(0, noise * 0.06);
 
         return {
-            x: wave1X + wave2X + wave3X + this.gaussianRandom(0, noise * 0.1),
-            y: wave1Y + wave2Y + wave3Y + this.gaussianRandom(0, noise * 0.08),
-            z: wave1Z + wave2Z + wave3Z + this.gaussianRandom(0, noise * 0.06),
+            x: xSignal,
+            y: 0,  // No Y-axis sensor on ESP32 hardware
+            z: zSignal,
         };
     }
 
@@ -244,7 +241,7 @@ class SensorSimulator extends EventEmitter {
 
         return {
             x: (combined + noise) * amp * 0.8,
-            y: (combined * 0.7 + this.gaussianRandom(0, 0.08)) * amp * 0.6,
+            y: 0,  // No Y-axis sensor on ESP32 hardware
             z: (Math.abs(combined) + noise * 0.5) * amp,
         };
     }
@@ -317,6 +314,7 @@ class SensorSimulator extends EventEmitter {
         const result = {
             timestamp,
             sensorA: {
+                timestamp,
                 ...dataA,
                 magnitude: magnitudeA,
                 voltage: {
@@ -326,6 +324,7 @@ class SensorSimulator extends EventEmitter {
                 }
             },
             sensorB: {
+                timestamp,
                 ...dataB,
                 magnitude: magnitudeB,
                 voltage: {
@@ -422,22 +421,25 @@ class SensorSimulator extends EventEmitter {
         if (this.isRunning) return;
         this.isRunning = true;
 
-        // Batch samples and emit at 50Hz for smooth analog waveforms
-        // Collect 10 samples per batch (500Hz / 10 = 50 SSE events/sec)
-        let batch = [];
+        // Generate internally at 500Hz for FFT accuracy,
+        // but only emit every 10th sample for display (50Hz effective)
+        // This gives the frontend clean, evenly-spaced data ideal for
+        // showing smooth sine-wave oscillations over several seconds.
+        let sampleCount = 0;
         this.intervalId = setInterval(() => {
             const data = this.generateSensorData();
-            batch.push(data);
-            if (batch.length >= 10) {
-                // Emit the full batch so the frontend gets dense waveform data
-                this.emit('data', { batch });
-                batch = [];
+            sampleCount++;
+
+            // Emit every 10th sample as a single-sample batch for display
+            // All samples still go to the internal FFT buffer via generateSensorData()
+            if (sampleCount % 10 === 0) {
+                this.emit('data', { batch: [data] });
             }
         }, 1000 / this.config.sampleRate);
 
         this.scheduleRandomTrain();
         this.emit('started');
-        console.log('Sensor simulation started (research-matched mode, batched output)');
+        console.log('Sensor simulation started (500Hz internal, 50Hz display output)');
     }
 
     scheduleRandomTrain() {
