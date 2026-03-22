@@ -37,7 +37,7 @@ interface FFTData {
     sensorB: { x: FFTPoint[]; y: FFTPoint[]; z: FFTPoint[] };
 }
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://13.233.186.145/api';
 
 // Axis configuration for consistent styling
 const axisConfig = {

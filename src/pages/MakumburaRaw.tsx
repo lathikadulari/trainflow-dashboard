@@ -22,7 +22,7 @@ interface FFTData {
   };
 }
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'http://13.233.186.145/api';
 const VISIBLE_WINDOW = 60;
 const MAX_POINTS = 1200;
 

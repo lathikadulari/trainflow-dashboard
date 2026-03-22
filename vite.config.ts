@@ -6,7 +6,7 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   // Only use base path for production builds (GitHub Pages, Render, etc.)
-  base: mode === 'production' ? '/trainflow-dashboard/' : '/',
+  base: '/',
   appType: 'spa',
   server: {
     host: "::",
