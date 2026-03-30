@@ -1,0 +1,38 @@
+aws.exe : 
+At line:1 char:1
++ & "C:\Program Files\A
+mazon\AWSCLIV2\aws.exe"
+ cloudfront 
+create-distri ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (:String) [],    
+ RemoteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+aws: [ERROR]: An error 
+occurred 
+(AccessDenied) when 
+calling the 
+CreateDistribution 
+operation: Your 
+account must be 
+verified before you 
+can add new CloudFront 
+resources. To verify 
+your account, please 
+contact AWS Support (ht
+tps://console.aws.amazo
+n.com/support/home#/) 
+and include this error 
+message.
+
+Additional error 
+details:
+Type: Sender
