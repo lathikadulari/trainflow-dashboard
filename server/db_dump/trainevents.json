@@ -1,0 +1,1091 @@
+[
+  {
+    "_id": "6a302421a49fabea60cfaa3a",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-15T16:11:13.483Z",
+    "endTime": "2026-06-15T16:11:30.083Z",
+    "duration": 16600,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": null,
+      "firstSensor": null,
+      "strongerSensor": "sensor2",
+      "votesLeft": 2,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375842"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a302564a49fabea60cfc36d",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-15T16:16:36.143Z",
+    "endTime": "2026-06-15T16:16:41.362Z",
+    "duration": 5219,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "right_to_left",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": null,
+      "firstSensor": null,
+      "strongerSensor": "sensor1",
+      "votesLeft": 0,
+      "votesRight": 2,
+      "methods": [
+        {
+          "name": "total_energy_yz",
+          "result": "RIGHT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a8337583d"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a3027ebfaa94ced4008ac5a",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-15T16:27:23.853Z",
+    "startTimeIST": "15/06/2026, 21:57:23.853 IST",
+    "endTime": "2026-06-15T16:27:27.077Z",
+    "endTimeIST": "15/06/2026, 21:57:27.077 IST",
+    "duration": 3224,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": null,
+      "firstSensor": null,
+      "strongerSensor": "sensor2",
+      "votesLeft": 2,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375838"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a302b38faa94ced4008d15a",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-15T16:41:28.553Z",
+    "startTimeIST": "15/06/2026, 22:11:28.553 IST",
+    "endTime": "2026-06-15T16:41:37.052Z",
+    "endTimeIST": "15/06/2026, 22:11:37.052 IST",
+    "duration": 8499,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": null,
+      "firstSensor": null,
+      "strongerSensor": "sensor2",
+      "votesLeft": 2,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375833"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a302bcbfaa94ced4008ec1f",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-15T16:43:55.388Z",
+    "startTimeIST": "15/06/2026, 22:13:55.388 IST",
+    "endTime": "2026-06-15T16:44:15.778Z",
+    "endTimeIST": "15/06/2026, 22:14:15.778 IST",
+    "duration": 20390,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": null,
+      "firstSensor": null,
+      "strongerSensor": "sensor2",
+      "votesLeft": 2,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a8337582e"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a302f38faa94ced400980d8",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-15T16:58:32.716Z",
+    "startTimeIST": "15/06/2026, 22:28:32.716 IST",
+    "endTime": "2026-06-15T16:58:56.071Z",
+    "endTimeIST": "15/06/2026, 22:28:56.071 IST",
+    "duration": 23355,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": null,
+      "firstSensor": null,
+      "strongerSensor": "sensor2",
+      "votesLeft": 2,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375829"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a311033c31a1d210500aed8",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-16T08:58:27.904Z",
+    "startTimeIST": "16/06/2026, 14:28:27.904 IST",
+    "endTime": "2026-06-16T09:01:14.075Z",
+    "endTimeIST": "16/06/2026, 14:31:14.075 IST",
+    "duration": 166171,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": null,
+      "firstSensor": null,
+      "strongerSensor": "sensor2",
+      "votesLeft": 2,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375824"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a3118cdc31a1d2105021c89",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-16T09:35:09.705Z",
+    "startTimeIST": "16/06/2026, 15:05:09.705 IST",
+    "endTime": "2026-06-16T09:38:23.840Z",
+    "endTimeIST": "16/06/2026, 15:08:23.840 IST",
+    "duration": 194135,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": 0,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor2",
+      "votesLeft": 12,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375818"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375819"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a8337581a"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a8337581b"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a8337581c"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a312b48275ddae7f3ce463b",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-16T10:54:00.652Z",
+    "startTimeIST": "16/06/2026, 16:24:00.652 IST",
+    "endTime": "2026-06-16T10:54:09.252Z",
+    "endTimeIST": "16/06/2026, 16:24:09.252 IST",
+    "duration": 8600,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 67,
+    "directionMeta": {
+      "propagationDelayMs": 0,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor1",
+      "votesLeft": 10,
+      "votesRight": 2,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a8337580c"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a8337580d"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a8337580e"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a8337580f"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "RIGHT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375810"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a312b52275ddae7f3ce469c",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-16T10:54:10.910Z",
+    "startTimeIST": "16/06/2026, 16:24:10.910 IST",
+    "endTime": "2026-06-16T10:55:39.614Z",
+    "endTimeIST": "16/06/2026, 16:25:39.614 IST",
+    "duration": 88704,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 50,
+    "directionMeta": {
+      "propagationDelayMs": 0,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor1",
+      "votesLeft": 9,
+      "votesRight": 3,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375800"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375801"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "RIGHT",
+          "deltaMs": 1,
+          "_id": "6a3a36e3a056ad7a83375802"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375803"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "RIGHT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a83375804"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a3133fb186f354fed043ad3",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-16T11:31:07.182Z",
+    "startTimeIST": "16/06/2026, 17:01:07.182 IST",
+    "endTime": "2026-06-16T11:32:56.325Z",
+    "endTimeIST": "16/06/2026, 17:02:56.325 IST",
+    "duration": 109143,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": 0,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor2",
+      "votesLeft": 12,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a833757f4"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a833757f5"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a833757f6"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a833757f7"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a833757f8"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a313ae5186f354fed051f20",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-16T12:00:37.730Z",
+    "startTimeIST": "16/06/2026, 17:30:37.730 IST",
+    "endTime": "2026-06-16T12:07:32.331Z",
+    "endTimeIST": "16/06/2026, 17:37:32.331 IST",
+    "duration": 414601,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": 0,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor2",
+      "votesLeft": 12,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a833757e9"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a833757ea"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a833757eb"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a833757ec"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e3a056ad7a833757ed"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a3140e4186f354fed05b469",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-16T12:26:12.035Z",
+    "startTimeIST": "16/06/2026, 17:56:12.035 IST",
+    "endTime": "2026-06-16T12:27:52.959Z",
+    "endTimeIST": "16/06/2026, 17:57:52.959 IST",
+    "duration": 100924,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 56,
+    "directionMeta": {
+      "propagationDelayMs": 1,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor2",
+      "votesLeft": 7,
+      "votesRight": 2,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 1,
+          "_id": "6a3a36e2a056ad7a833757de"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757df"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "RIGHT",
+          "deltaMs": 45,
+          "_id": "6a3a36e2a056ad7a833757e0"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757e1"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a3788f1f038c48504ae4be6",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-21T06:47:13.079Z",
+    "startTimeIST": "21/06/2026, 12:17:13.079 IST",
+    "endTime": "2026-06-21T06:47:25.385Z",
+    "endTimeIST": "21/06/2026, 12:17:25.385 IST",
+    "duration": 12306,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": 0,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor2",
+      "votesLeft": 12,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757d2"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757d3"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757d4"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757d5"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757d6"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a37890bf038c48504ae50cb",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-21T06:47:39.812Z",
+    "startTimeIST": "21/06/2026, 12:17:39.812 IST",
+    "endTime": "2026-06-21T06:48:00.736Z",
+    "endTimeIST": "21/06/2026, 12:18:00.736 IST",
+    "duration": 20924,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "right_to_left",
+    "directionConfidence": 50,
+    "directionMeta": {
+      "propagationDelayMs": 1,
+      "firstSensor": "sensor1",
+      "strongerSensor": "sensor2",
+      "votesLeft": 3,
+      "votesRight": 9,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "RIGHT",
+          "deltaMs": 1,
+          "_id": "6a3a36e2a056ad7a833757c6"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "RIGHT",
+          "deltaMs": 1,
+          "_id": "6a3a36e2a056ad7a833757c7"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757c8"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "RIGHT",
+          "deltaMs": 1,
+          "_id": "6a3a36e2a056ad7a833757c9"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757ca"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a378b8cf038c48504ae7bf0",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-21T06:58:20.031Z",
+    "startTimeIST": "21/06/2026, 12:28:20.031 IST",
+    "endTime": "2026-06-21T06:58:31.582Z",
+    "endTimeIST": "21/06/2026, 12:28:31.582 IST",
+    "duration": 11551,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": 0,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor2",
+      "votesLeft": 12,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757ba"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757bb"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757bc"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757bd"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757be"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a378ccbf038c48504ae8403",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-21T07:03:39.634Z",
+    "startTimeIST": "21/06/2026, 12:33:39.634 IST",
+    "endTime": "2026-06-21T07:03:56.779Z",
+    "endTimeIST": "21/06/2026, 12:33:56.779 IST",
+    "duration": 17145,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 17,
+    "directionMeta": {
+      "propagationDelayMs": 1,
+      "firstSensor": "sensor1",
+      "strongerSensor": "sensor2",
+      "votesLeft": 7,
+      "votesRight": 5,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "RIGHT",
+          "deltaMs": 1,
+          "_id": "6a3a36e2a056ad7a833757ae"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757af"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "RIGHT",
+          "deltaMs": 1,
+          "_id": "6a3a36e2a056ad7a833757b0"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757b1"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757b2"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a39f0bd4fc6220cb554f695",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-23T02:34:37.758Z",
+    "startTimeIST": "23/06/2026, 08:04:37.758 IST",
+    "endTime": "2026-06-23T02:36:13.081Z",
+    "endTimeIST": "23/06/2026, 08:06:13.081 IST",
+    "duration": 95323,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 33,
+    "directionMeta": {
+      "propagationDelayMs": 0,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor1",
+      "votesLeft": 8,
+      "votesRight": 4,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e0a056ad7a83375797"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e0a056ad7a83375798"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e0a056ad7a83375799"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "RIGHT",
+          "deltaMs": 1,
+          "_id": "6a3a36e0a056ad7a8337579a"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "RIGHT",
+          "deltaMs": 0,
+          "_id": "6a3a36e0a056ad7a8337579b"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a3a0c1c4fc6220cb5557994",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-23T04:31:24.675Z",
+    "startTimeIST": "23/06/2026, 10:01:24.675 IST",
+    "endTime": "2026-06-23T04:33:28.154Z",
+    "endTimeIST": "23/06/2026, 10:03:28.154 IST",
+    "duration": 123479,
+    "notes": "",
+    "active": false,
+    "__v": 0,
+    "direction": "left_to_right",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": 2,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor2",
+      "votesLeft": 9,
+      "votesRight": 0,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 2,
+          "_id": "6a3a36e0a056ad7a8337578c"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e0a056ad7a8337578d"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e0a056ad7a8337578e"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e0a056ad7a8337578f"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a3a29474237322f208aea69",
+    "station": "Makumbura",
+    "type": "approaching",
+    "startTime": "2026-06-23T02:14:00.000Z",
+    "startTimeIST": "23/06/2026, 07:44:00.000 IST",
+    "endTime": "2026-06-23T02:25:00.000Z",
+    "endTimeIST": "23/06/2026, 07:55:00.000 IST",
+    "duration": 660000,
+    "notes": "Manually created from remote sensor data",
+    "active": false,
+    "direction": "left_to_right",
+    "directionConfidence": 67,
+    "directionMeta": {
+      "propagationDelayMs": 0,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor1",
+      "votesLeft": 10,
+      "votesRight": 2,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757a3"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757a4"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757a5"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757a6"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "RIGHT",
+          "deltaMs": 0,
+          "_id": "6a3a36e2a056ad7a833757a7"
+        }
+      ]
+    }
+  },
+  {
+    "_id": "6a3a4869b35c95422b65e5c0",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-23T08:48:41.789Z",
+    "startTimeIST": "23/06/2026, 14:18:41.789 IST",
+    "endTime": "2026-06-23T08:53:56.811Z",
+    "endTimeIST": "23/06/2026, 14:23:56.811 IST",
+    "duration": 315022,
+    "notes": "",
+    "active": false,
+    "direction": "right_to_left",
+    "directionConfidence": 100,
+    "directionMeta": {
+      "propagationDelayMs": 497,
+      "firstSensor": "sensor1",
+      "strongerSensor": "sensor1",
+      "votesLeft": 0,
+      "votesRight": 12,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "RIGHT",
+          "deltaMs": 497,
+          "_id": "6a3a49a4b35c95422b661f48"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "RIGHT",
+          "deltaMs": 6,
+          "_id": "6a3a49a4b35c95422b661f49"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "RIGHT",
+          "deltaMs": 497,
+          "_id": "6a3a49a4b35c95422b661f4a"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "RIGHT",
+          "deltaMs": 718,
+          "_id": "6a3a49a4b35c95422b661f4b"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "RIGHT",
+          "deltaMs": 0,
+          "_id": "6a3a49a4b35c95422b661f4c"
+        }
+      ]
+    },
+    "__v": 0
+  },
+  {
+    "_id": "6a3a5390b35c95422b66c0e8",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-23T09:36:16.387Z",
+    "startTimeIST": "23/06/2026, 15:06:16.387 IST",
+    "endTime": "2026-06-23T09:38:12.000Z",
+    "endTimeIST": "23/06/2026, 15:08:12.000 IST",
+    "duration": 115613,
+    "notes": "",
+    "active": false,
+    "direction": "right_to_left",
+    "directionConfidence": 33,
+    "directionMeta": {
+      "propagationDelayMs": 471,
+      "firstSensor": "sensor2",
+      "strongerSensor": "sensor1",
+      "votesLeft": 4,
+      "votesRight": 8,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "LEFT",
+          "deltaMs": 471,
+          "_id": "6a3a5404b35c95422b66d27c"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "RIGHT",
+          "deltaMs": 6,
+          "_id": "6a3a5404b35c95422b66d27d"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "RIGHT",
+          "deltaMs": 6,
+          "_id": "6a3a5404b35c95422b66d27e"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "RIGHT",
+          "deltaMs": 67406,
+          "_id": "6a3a5404b35c95422b66d27f"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "RIGHT",
+          "deltaMs": 0,
+          "_id": "6a3a5404b35c95422b66d280"
+        }
+      ]
+    },
+    "__v": 0
+  },
+  {
+    "_id": "6a3a650cac66221f24d09412",
+    "station": "Makumbura",
+    "type": "stopped",
+    "startTime": "2026-06-23T10:50:52.588Z",
+    "startTimeIST": "23/06/2026, 16:20:52.588 IST",
+    "endTime": "2026-06-23T10:52:39.285Z",
+    "endTimeIST": "23/06/2026, 16:22:39.285 IST",
+    "duration": 106697,
+    "notes": "",
+    "active": false,
+    "direction": "right_to_left",
+    "directionConfidence": 17,
+    "directionMeta": {
+      "propagationDelayMs": 285,
+      "firstSensor": "sensor1",
+      "strongerSensor": "sensor2",
+      "votesLeft": 5,
+      "votesRight": 7,
+      "methods": [
+        {
+          "name": "combined_rms",
+          "result": "RIGHT",
+          "deltaMs": 285,
+          "_id": "6a3a6577ac66221f24d0a400"
+        },
+        {
+          "name": "y_rms_onset",
+          "result": "LEFT",
+          "deltaMs": 5,
+          "_id": "6a3a6577ac66221f24d0a401"
+        },
+        {
+          "name": "z_rms_onset",
+          "result": "RIGHT",
+          "deltaMs": 260,
+          "_id": "6a3a6577ac66221f24d0a402"
+        },
+        {
+          "name": "combined_mag_onset",
+          "result": "RIGHT",
+          "deltaMs": 27,
+          "_id": "6a3a6577ac66221f24d0a403"
+        },
+        {
+          "name": "total_energy_yz",
+          "result": "LEFT",
+          "deltaMs": 0,
+          "_id": "6a3a6577ac66221f24d0a404"
+        }
+      ]
+    },
+    "__v": 0
+  },
+  {
+    "_id": "6a3a819bd8cd4a2512907fd3",
+    "startTime": "2026-06-23T11:31:00.000Z",
+    "endTime": "2026-06-23T11:38:00.000Z",
+    "type": "stopped",
+    "direction": "unknown",
+    "speed": 0,
+    "createdAt": "2026-06-23T12:52:43.480Z",
+    "updatedAt": "2026-06-23T12:52:43.480Z",
+    "notes": "Imported from remote: Train 1 (5:01 PM - 5:08 PM)",
+    "active": false,
+    "duration": 420000,
+    "endTimeIST": "23/06/2026, 17:08:00.000 IST",
+    "startTimeIST": "23/06/2026, 17:01:00.000 IST",
+    "station": "Makumbura"
+  },
+  {
+    "_id": "6a3a819ed8cd4a2512907fd4",
+    "startTime": "2026-06-23T11:59:00.000Z",
+    "endTime": "2026-06-23T12:04:00.000Z",
+    "type": "stopped",
+    "direction": "unknown",
+    "speed": 0,
+    "createdAt": "2026-06-23T12:52:46.969Z",
+    "updatedAt": "2026-06-23T12:52:46.969Z",
+    "notes": "Imported from remote: Train 2 (5:29 PM - 5:34 PM)",
+    "active": false,
+    "duration": 300000,
+    "endTimeIST": "23/06/2026, 17:34:00.000 IST",
+    "startTimeIST": "23/06/2026, 17:29:00.000 IST",
+    "station": "Makumbura"
+  }
+]
