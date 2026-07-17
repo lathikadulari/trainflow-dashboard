@@ -23,6 +23,19 @@ dist-ssr
 *.sln
 *.sw?
 
-# Security
-.env
+# Sensitive files
 *.pem
+.env
+.env.*
+server/.env
+
+# Temp scripts & files
+tmp/
+fix_*.cjs
+fix_*.js
+print_*.cjs
+analyze_*.cjs
+*.timestamp*
+mongodb_data/
+mongod_temp*
+server/data/

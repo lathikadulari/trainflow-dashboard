@@ -6,7 +6,8 @@
     "scripts": {
         "start": "node server.js",
         "dev": "node server.js",
-        "seed": "node seeds/seedData.js"
+        "seed": "node seeds/seedData.js",
+        "mqtt:sub": "node scripts/liveSubscribe.js"
     },
     "dependencies": {
         "bcryptjs": "^2.4.3",

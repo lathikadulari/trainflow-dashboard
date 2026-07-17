@@ -1,4 +1,20 @@
 const mqtt = require('mqtt');
+const MqttRecord = require('../models/MqttRecord');
+const DirectionDetector = require('./directionDetector');
+
+// ── Direction detector instance (one per station) ────────────
+let directionDetector = new DirectionDetector('Makumbura');
+
+// ── Sri Lankan Time (IST UTC+5:30) helper ───────────────────
+function toIST(date) {
+    const d = date || new Date();
+    return d.toLocaleString('en-GB', {
+        timeZone: 'Asia/Colombo',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false
+    }) + '.' + String(d.getMilliseconds()).padStart(3, '0') + ' IST';
+}
 
 let client = null;
 let isConnected = false;
@@ -27,9 +43,31 @@ const sensorBuffer = {
 };
 const maxBufferSize = 512;
 const fftWindowSize = 256;
+const MQTT_SAMPLE_RATE_HZ = Number(process.env.MQTT_SAMPLE_RATE_HZ || 10);
+const FFT_MIN_HZ = Number(process.env.MQTT_FFT_MIN_HZ || 0.05);
+
+const smoothSpectrum = (points, radius = 1) => {
+    if (!Array.isArray(points) || points.length === 0 || radius <= 0) return points;
+
+    return points.map((point, index) => {
+        let sum = 0;
+        let count = 0;
+
+        for (let i = index - radius; i <= index + radius; i++) {
+            if (i < 0 || i >= points.length) continue;
+            sum += points[i].magnitude;
+            count += 1;
+        }
+
+        return {
+            frequency: point.frequency,
+            magnitude: count > 0 ? sum / count : point.magnitude,
+        };
+    });
+};
 
 // True FFT computation using Radix-2 Cooley-Tukey algorithm
-const computeFFT = (signal, sampleRate = 50) => {
+const computeFFT = (signal, sampleRate = MQTT_SAMPLE_RATE_HZ) => {
     const N = signal.length;
     if (N < 16) return [];
 
@@ -40,8 +78,11 @@ const computeFFT = (signal, sampleRate = 50) => {
     const real = new Float64Array(paddedLength);
     const imag = new Float64Array(paddedLength);
 
+    // Remove DC bias and apply Hann window to reduce spectral leakage.
+    const mean = signal.reduce((sum, value) => sum + value, 0) / N;
     for (let i = 0; i < N; i++) {
-        real[i] = signal[i];
+        const hann = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (N - 1));
+        real[i] = (signal[i] - mean) * hann;
     }
 
     // Bit-reversal permutation
@@ -91,18 +132,23 @@ const computeFFT = (signal, sampleRate = 50) => {
 
     const results = [];
 
-    // Calculate magnitudes and apply bandpass filter (positive frequencies only)
-    for (let k = 0; k < paddedLength / 2; k++) {
+    const nyquist = sampleRate / 2;
+    const maxHz = Number(process.env.MQTT_FFT_MAX_HZ || nyquist);
+    const minHz = Math.max(0, FFT_MIN_HZ);
+    const clampedMaxHz = Math.min(maxHz, nyquist);
+
+    // Calculate magnitudes for positive frequencies only and keep physically valid band.
+    for (let k = 1; k < paddedLength / 2; k++) {
         const magnitude = Math.sqrt(real[k] * real[k] + imag[k] * imag[k]) / paddedLength;
         const frequency = (k * sampleRate) / paddedLength;
 
-        // Filter to 10-250 Hz range (relevant for train vibration)
-        if (frequency >= 10 && frequency <= 250) {
-            results.push({ frequency: Math.round(frequency), magnitude });
+        if (frequency >= minHz && frequency <= clampedMaxHz) {
+            results.push({ frequency: Number(frequency.toFixed(4)), magnitude });
         }
     }
 
-    return results;
+    // Light 3-bin moving average smoothing for visually stable real-time FFT.
+    return smoothSpectrum(results, 1);
 };
 
 // Compute FFT for all axes
@@ -138,25 +184,34 @@ const computeAllFFT = () => {
 
 const connectMQTT = () => {
     return new Promise((resolve, reject) => {
-        // HiveMQ Cloud connection options - loaded inside function to ensure env vars are available
+        // MQTT connection options loaded inside function to ensure env vars are available.
+        const mqttPort = parseInt(process.env.MQTT_PORT, 10) || 1883;
+        const mqttProtocol = process.env.MQTT_PROTOCOL || (mqttPort === 8883 ? 'mqtts' : 'mqtt');
+        const rejectUnauthorized = process.env.MQTT_REJECT_UNAUTHORIZED !== 'false';
+
         const options = {
             host: process.env.MQTT_HOST,
-            port: parseInt(process.env.MQTT_PORT) || 8883,
-            protocol: 'mqtts',
+            port: mqttPort,
+            protocol: mqttProtocol,
             username: process.env.MQTT_USERNAME,
             password: process.env.MQTT_PASSWORD,
-            rejectUnauthorized: true
+            reconnectPeriod: 15000 // Retry every 15 seconds instead of every 1 second
         };
 
-        console.log('Connecting to HiveMQ Cloud...');
+        if (mqttProtocol === 'mqtts') {
+            options.rejectUnauthorized = rejectUnauthorized;
+        }
+
+        console.log('Connecting to MQTT broker...');
         console.log('Host:', options.host);
         console.log('Port:', options.port);
+        console.log('Protocol:', options.protocol);
         console.log('Username:', options.username);
 
         client = mqtt.connect(options);
 
         client.on('connect', () => {
-            console.log('Connected to HiveMQ Cloud successfully!');
+            console.log('Connected to MQTT broker successfully!');
             isConnected = true;
 
             // Subscribe to train-related topics
@@ -181,12 +236,19 @@ const connectMQTT = () => {
                     console.log('Subscribed to makumbura/# topics');
                 }
             });
+            client.subscribe('sensorlab/#', (err) => {
+                if (err) {
+                    console.error('Subscription sensorlab error:', err);
+                } else {
+                    console.log('Subscribed to sensorlab/# topics');
+                }
+            });
 
             resolve(client);
         });
 
         client.on('error', (error) => {
-            console.error('MQTT Connection error:', error);
+            console.error('MQTT Connection error:', error.message || error);
             isConnected = false;
         });
 
@@ -196,7 +258,7 @@ const connectMQTT = () => {
         });
 
         client.on('reconnect', () => {
-            console.log('Attempting to reconnect to MQTT...');
+            console.log('Attempting to reconnect to MQTT (every 15s)...');
         });
 
         client.on('message', (topic, message) => {
@@ -211,48 +273,109 @@ const connectMQTT = () => {
                     timestamp: new Date().toISOString()
                 };
 
+                // ── Persist to MongoDB (fire-and-forget) ────────
+                const parts = topic.split('/');
+                const station = parts[0] || null;   // e.g. "makumbura", "trainflow", "sensorlab"
+                const sensorId = parts[1] || null;   // e.g. "sensor1", "sensor2", "status"
+                MqttRecord.create({
+                    topic,
+                    payload: data,
+                    rawPayload: messageStr,
+                    station,
+                    sensorId,
+                    receivedAt: new Date(),
+                    localTime: toIST()
+                }).catch(err => console.error('MqttRecord save error:', err.message));
+
                 let mappedTopic = topic;
                 let mappedData = data;
 
                 if (topic === 'adxl335/sensor1' && data) {
                     mappedTopic = 'trainflow/sensor/A';
+                    const yG = data.y_g ?? data.x_g ?? 0;
+                    const zG = data.z_g ?? 0;
                     mappedData = {
                         timestamp: Date.now(),
-                        x: (data.x_g || 0) * 1000,
-                        y: 0,
-                        z: (data.z_g || 0) * 1000,
-                        magnitude: Math.sqrt((data.x_g || 0) ** 2 + (data.z_g || 0) ** 2) * 1000,
-                        voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
+                        x: 0,
+                        y: yG * 1000,
+                        z: zG * 1000,
+                        magnitude: Math.sqrt(yG ** 2 + zG ** 2) * 1000,
+                        voltage: { x: 1.65, y: data.y_v ?? data.x_v ?? 1.65, z: data.z_v ?? 1.65 }
                     };
                 } else if (topic === 'adxl335/sensor2' && data) {
                     mappedTopic = 'trainflow/sensor/B';
+                    const yG = data.y_g ?? data.x_g ?? 0;
+                    const zG = data.z_g ?? 0;
                     mappedData = {
                         timestamp: Date.now(),
-                        x: (data.x_g || 0) * 1000,
-                        y: 0,
-                        z: (data.z_g || 0) * 1000,
-                        magnitude: Math.sqrt((data.x_g || 0) ** 2 + (data.z_g || 0) ** 2) * 1000,
-                        voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
+                        x: 0,
+                        y: yG * 1000,
+                        z: zG * 1000,
+                        magnitude: Math.sqrt(yG ** 2 + zG ** 2) * 1000,
+                        voltage: { x: 1.65, y: data.y_v ?? data.x_v ?? 1.65, z: data.z_v ?? 1.65 }
                     };
                 } else if (topic === 'makumbura/sensor1' && data) {
-                    mappedTopic = 'trainflow/sensor/A';
-                    mappedData = {
-                        timestamp: Date.now(),
-                        x: (data.x_g || 0) * 1000,
-                        y: 0,
-                        z: (data.z_g || 0) * 1000,
-                        magnitude: Math.sqrt((data.x_g || 0) ** 2 + (data.z_g || 0) ** 2) * 1000,
-                        voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
-                    };
-                } else if (topic === 'makumbura/sensor2' && data) {
+                    // sensor1 = Right side sensor (A0=Y, A1=Z) → maps to right panel (B)
                     mappedTopic = 'trainflow/sensor/B';
+                    const yG = data.y_g ?? data.x_g ?? 0;
+                    const zG = data.z_g ?? 0;
                     mappedData = {
                         timestamp: Date.now(),
-                        x: (data.x_g || 0) * 1000,
-                        y: 0,
-                        z: (data.z_g || 0) * 1000,
-                        magnitude: Math.sqrt((data.x_g || 0) ** 2 + (data.z_g || 0) ** 2) * 1000,
-                        voltage: { x: data.x_v || 1.65, y: 1.65, z: data.z_v || 1.65 }
+                        t_us: data.t_us ?? null,
+                        x: 0,
+                        y: yG * 1000,
+                        z: zG * 1000,
+                        magnitude: Math.sqrt(yG ** 2 + zG ** 2) * 1000,
+                        voltage: { x: 1.65, y: data.y_v ?? data.x_v ?? 1.65, z: data.z_v ?? 1.65 }
+                    };
+
+                    // ── Feed to direction detector ──
+                    const dirResult = directionDetector.onSensorData('sensor1', data);
+                    if (dirResult) {
+                        // Broadcast direction result via message callback
+                        if (messageCallback) {
+                            messageCallback('trainflow/direction', {
+                                type: 'direction_detected',
+                                ...dirResult,
+                                timestamp: Date.now()
+                            });
+                        }
+                    }
+                } else if (topic === 'makumbura/sensor2' && data) {
+                    // sensor2 = Left side sensor (A2=Y, A3=Z) → maps to left panel (A)
+                    mappedTopic = 'trainflow/sensor/A';
+                    const yG = data.y_g ?? data.x_g ?? 0;
+                    const zG = data.z_g ?? 0;
+                    mappedData = {
+                        timestamp: Date.now(),
+                        t_us: data.t_us ?? null,
+                        x: 0,
+                        y: yG * 1000,
+                        z: zG * 1000,
+                        magnitude: Math.sqrt(yG ** 2 + zG ** 2) * 1000,
+                        voltage: { x: 1.65, y: data.y_v ?? data.x_v ?? 1.65, z: data.z_v ?? 1.65 }
+                    };
+
+                    // ── Feed to direction detector ──
+                    directionDetector.onSensorData('sensor2', data);
+                } else if (topic === 'sensorlab/sensor1' && data) {
+                    mappedTopic = 'sensorlab/sensor1';
+
+                    const xMilliG = typeof data.x === 'number' ? data.x : (data.x_g || 0) * 1000;
+                    const yMilliG = typeof data.y === 'number' ? data.y : (data.y_g || 0) * 1000;
+                    const zMilliG = typeof data.z === 'number' ? data.z : (data.z_g || 0) * 1000;
+
+                    mappedData = {
+                        timestamp: Date.now(),
+                        x: xMilliG,
+                        y: yMilliG,
+                        z: zMilliG,
+                        magnitude: Math.sqrt(xMilliG ** 2 + yMilliG ** 2 + zMilliG ** 2),
+                        voltage: {
+                            x: data.x_v || 1.65,
+                            y: data.y_v || 1.65,
+                            z: data.z_v || 1.65,
+                        },
                     };
                 }
 
@@ -269,6 +392,13 @@ const connectMQTT = () => {
                     if (sensorBuffer.sensorB.length > maxBufferSize) {
                         sensorBuffer.sensorB.shift();
                     }
+                } else if (mappedTopic === 'sensorlab/sensor1' && mappedData) {
+                    lastEsp32DataTime = Date.now(); // Update heartbeat for single-sensor setup
+                    // Reuse sensorA FFT pipeline for the one-sensor lab setup.
+                    sensorBuffer.sensorA.push(mappedData);
+                    if (sensorBuffer.sensorA.length > maxBufferSize) {
+                        sensorBuffer.sensorA.shift();
+                    }
                 }
 
                 // Call the message callback if set
@@ -281,6 +411,17 @@ const connectMQTT = () => {
                     data: messageStr,
                     timestamp: new Date().toISOString()
                 };
+
+                // ── Persist non-JSON messages too ────────
+                MqttRecord.create({
+                    topic,
+                    payload: { raw: messageStr },
+                    rawPayload: messageStr,
+                    station: topic.split('/')[0] || null,
+                    sensorId: topic.split('/')[1] || null,
+                    receivedAt: new Date(),
+                    localTime: toIST()
+                }).catch(err => console.error('MqttRecord save error (non-JSON):', err.message));
             }
         });
 
@@ -348,6 +489,13 @@ const disconnect = () => {
     }
 };
 
+// ── Direction detector access ───────────────────────────────
+const getDirectionDetector = () => directionDetector;
+const resetDirectionDetector = () => {
+    directionDetector = new DirectionDetector('Makumbura');
+    return directionDetector;
+};
+
 module.exports = {
     connectMQTT,
     publishMessage,
@@ -357,5 +505,9 @@ module.exports = {
     getConnectionStatus,
     getEsp32Status,
     computeAllFFT,
-    disconnect
+    computeFFT,
+    disconnect,
+    toIST,
+    getDirectionDetector,
+    resetDirectionDetector
 };

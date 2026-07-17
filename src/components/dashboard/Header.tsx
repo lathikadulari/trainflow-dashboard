@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Train, Bell, LayoutDashboard, FileText, LogOut } from 'lucide-react';
+import { Train, Bell, LayoutDashboard, FileText, LogOut, Activity, Cpu, BarChart3, Sliders, Filter, BrainCircuit } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -30,11 +30,11 @@ const Header = () => {
             </div>
           </Link>
 
-          <nav className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg">
+          <nav className="flex items-center gap-1 bg-secondary/50 p-1 rounded-lg overflow-x-auto max-w-[50vw] lg:max-w-none scrollbar-none">
             <Link
               to="/"
               className={cn(
-                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-2",
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
                 location.pathname === "/"
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
@@ -42,6 +42,78 @@ const Header = () => {
             >
               <LayoutDashboard className="w-4 h-4" />
               Dashboard
+            </Link>
+            <Link
+              to="/sensors"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                location.pathname === "/sensors"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              <Activity className="w-4 h-4" />
+              Live Sensors
+            </Link>
+            <Link
+              to="/makumbura"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                location.pathname === "/makumbura"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              <Cpu className="w-4 h-4" />
+              Makumbura Raw
+            </Link>
+            <Link
+              to="/analysis"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                location.pathname === "/analysis"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Data Analysis
+            </Link>
+            <Link
+              to="/noise"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                location.pathname === "/noise"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              <Sliders className="w-4 h-4" />
+              Noise Calibration
+            </Link>
+            <Link
+              to="/filter"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                location.pathname === "/filter"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              <Filter className="w-4 h-4" />
+              Noise Filter
+            </Link>
+            <Link
+              to="/ml-analysis"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                location.pathname === "/ml-analysis"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              <BrainCircuit className="w-4 h-4" />
+              ML Analysis
             </Link>
           </nav>
         </div>

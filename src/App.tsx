@@ -7,8 +7,12 @@ import Logs from "./pages/Logs";
 import Index from "./pages/Index";
 import StationDetails from "./pages/StationDetails";
 import LineStations from "./pages/LineStations";
-import SensorSimulation from "./pages/SensorSimulation";
+import SensorsLive from "./pages/SensorsLive";
 import MakumburaRaw from "./pages/MakumburaRaw";
+import DataAnalysis from "./pages/DataAnalysis";
+import NoiseCalibration from "./pages/NoiseCalibration";
+import NoiseFilter from "./pages/NoiseFilter";
+import { MLAnalysis } from "./pages/MLAnalysis";
 import NotFound from "./pages/NotFound";
 
 import { AuthProvider } from "@/context/AuthContext";
@@ -31,8 +35,12 @@ const App = () => (
               <Route path="/logs" element={<Logs />} />
               <Route path="/station/:id" element={<StationDetails />} />
               <Route path="/line/:lineName" element={<LineStations />} />
-              <Route path="/sensors" element={<SensorSimulation />} />
+              <Route path="/sensors" element={<SensorsLive />} />
               <Route path="/makumbura" element={<MakumburaRaw />} />
+              <Route path="/analysis" element={<DataAnalysis />} />
+              <Route path="/noise" element={<NoiseCalibration />} />
+              <Route path="/filter" element={<NoiseFilter />} />
+              <Route path="/ml-analysis" element={<MLAnalysis />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

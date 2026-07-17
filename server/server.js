@@ -37,12 +37,37 @@ console.log('Loading MQTT routes...');
 app.use('/api/mqtt', require('./routes/mqtt'));
 console.log('MQTT routes loaded');
 
+// Analysis routes for train event data analysis
+console.log('Loading analysis routes...');
+app.use('/api/analysis', require('./routes/analysis'));
+console.log('Analysis routes loaded');
+
+// Noise calibration routes
+console.log('Loading noise routes...');
+app.use('/api/noise', require('./routes/noise'));
+console.log('Noise routes loaded');
+
+// Noise filter analysis routes
+console.log('Loading filter routes...');
+app.use('/api/filter', require('./routes/filter'));
+console.log('Filter routes loaded');
+
+// ML routes
+console.log('Loading ML routes...');
+app.use('/api/ml', require('./routes/ml'));
+console.log('ML routes loaded');
+
 // SSE endpoint for real-time ESP32 sensor data
 let mqttSseClients = [];
 
 // Set up MQTT message callback to broadcast to SSE clients
 mqttService.setMessageCallback((topic, data) => {
-    if (topic.startsWith('trainflow/sensor/') || topic === 'trainflow/trainState' || topic.startsWith('makumbura/')) {
+    if (
+        topic.startsWith('trainflow/sensor/') ||
+        topic === 'trainflow/trainState' ||
+        topic.startsWith('makumbura/') ||
+        topic.startsWith('sensorlab/')
+    ) {
         const message = JSON.stringify({ topic, data, timestamp: Date.now() });
         mqttSseClients.forEach(client => {
             client.res.write(`data: ${message}\n\n`);
