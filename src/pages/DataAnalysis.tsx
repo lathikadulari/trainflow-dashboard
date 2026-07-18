@@ -429,12 +429,42 @@ const DataAnalysis: React.FC = () => {
     setCompZoomDomain(null);
   };
 
-  // ── Pulse timing analysis (auto-detect onset delay) ───────
-  const pulseTimingAnalysis = useMemo(() => {
+  // ── Filter sensor data to zoom range when a selection is active ──
+  const filteredSensorData = useMemo(() => {
     if (!eventData) return null;
 
     const s1 = eventData.sensor1.data; // Right
     const s2 = eventData.sensor2.data; // Left
+
+    // If no zoom domain is selected, use full data
+    if (!compZoomDomain) return { s1, s2, isFiltered: false };
+
+    // Compute t0 the same way comparisonChartData does
+    const t0 = Math.min(
+      s1.length > 0 ? new Date(s1[0].t).getTime() : Infinity,
+      s2.length > 0 ? new Date(s2[0].t).getTime() : Infinity
+    );
+
+    const [zoomLeft, zoomRight] = compZoomDomain;
+
+    // Filter sensor points to only those within the zoomed time range
+    const filteredS1 = s1.filter(p => {
+      const timeSec = (new Date(p.t).getTime() - t0) / 1000;
+      return timeSec >= zoomLeft && timeSec <= zoomRight;
+    });
+    const filteredS2 = s2.filter(p => {
+      const timeSec = (new Date(p.t).getTime() - t0) / 1000;
+      return timeSec >= zoomLeft && timeSec <= zoomRight;
+    });
+
+    return { s1: filteredS1, s2: filteredS2, isFiltered: true };
+  }, [eventData, compZoomDomain]);
+
+  // ── Pulse timing analysis (auto-detect onset delay) ───────
+  const pulseTimingAnalysis = useMemo(() => {
+    if (!eventData || !filteredSensorData) return null;
+
+    const { s1, s2 } = filteredSensorData;
 
     if (s1.length < 20 || s2.length < 20) return null;
 
@@ -513,13 +543,12 @@ const DataAnalysis: React.FC = () => {
       firstSensor: delaySec > 0 ? 'Left' : 'Right',
       absDelaySec: Math.abs(delaySec)
     };
-  }, [eventData]);
+  }, [eventData, filteredSensorData]);
 
   // ── Peak-to-peak train speed analysis (based on 10m physical distance) ──
   const peakSpeedAnalysis = useMemo(() => {
-    if (!eventData) return null;
-    const s1 = eventData.sensor1.data;
-    const s2 = eventData.sensor2.data;
+    if (!eventData || !filteredSensorData) return null;
+    const { s1, s2 } = filteredSensorData;
     if (s1.length < 10 || s2.length < 10) return null;
 
     // Use the first sensor's first timestamp as t0 for display
@@ -571,12 +600,23 @@ const DataAnalysis: React.FC = () => {
     const finalSpeedMs = speedKmh < 1.0 ? 8.333 : speedMs;
     const finalSpeedKmh = speedKmh < 1.0 ? 30.0 : speedKmh;
 
+    const formatPeakTime = (ms: number) => new Date(ms).toLocaleString('en-GB', {
+      timeZone: 'Asia/Colombo',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      fractionalSecondDigits: 3,
+      hour12: false
+    });
+
     return {
       diffSec,
       speedMs: finalSpeedMs,
-      speedKmh: finalSpeedKmh
+      speedKmh: finalSpeedKmh,
+      rightPeakTime: formatPeakTime(t1),
+      leftPeakTime: formatPeakTime(t2),
+      rightPeakVal: s1MaxVal,
+      leftPeakVal: s2MaxVal
     };
-  }, [eventData]);
+  }, [eventData, filteredSensorData]);
 
   // ── Global Event/Timing helpers based on expanded event ──
   const expandedEventDetails = useMemo(() => {
@@ -1223,6 +1263,12 @@ const DataAnalysis: React.FC = () => {
                                                        <div className="text-center px-4 py-2 rounded-lg bg-slate-900/60 border border-violet-500/30">
                                                          <div className="text-[10px] text-slate-500 uppercase">Delay</div>
                                                          <div className="text-xl font-bold font-mono text-violet-300">{peakSpeedAnalysis ? `${peakSpeedAnalysis.diffSec.toFixed(3)}s` : '—'}</div>
+                                                         {peakSpeedAnalysis && (
+                                                           <div className="text-[9px] text-slate-500 mt-1 leading-relaxed">
+                                                             <div>R peak: <span className="text-blue-300 font-mono">{peakSpeedAnalysis.rightPeakTime}</span></div>
+                                                             <div>L peak: <span className="text-amber-300 font-mono">{peakSpeedAnalysis.leftPeakTime}</span></div>
+                                                           </div>
+                                                         )}
                                                        </div>
                                                        {peakSpeedAnalysis && (
                                                          <div className="text-center px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.25)]">
@@ -1251,34 +1297,56 @@ const DataAnalysis: React.FC = () => {
                                                  </div>
                                                );
                                              })()}
-                                            {eventData.sensor1.stats && eventData.sensor2.stats && (
+                                            {eventData.sensor1.stats && eventData.sensor2.stats && (() => {
+                                              // Compute stats from filtered data when a zoom selection is active
+                                              const computeRangeStats = (data: SensorPoint[]) => {
+                                                if (data.length === 0) return null;
+                                                let yMin = Infinity, yMax = -Infinity;
+                                                let zMin = Infinity, zMax = -Infinity;
+                                                for (const p of data) {
+                                                  if (p.y_g < yMin) yMin = p.y_g;
+                                                  if (p.y_g > yMax) yMax = p.y_g;
+                                                  if (p.z_g < zMin) zMin = p.z_g;
+                                                  if (p.z_g > zMax) zMax = p.z_g;
+                                                }
+                                                return { y: { min: yMin, max: yMax }, z: { min: zMin, max: zMax } };
+                                              };
+                                              const rightStats = filteredSensorData?.isFiltered
+                                                ? computeRangeStats(filteredSensorData.s1)
+                                                : { y: eventData.sensor1.stats!.y, z: eventData.sensor1.stats!.z };
+                                              const leftStats = filteredSensorData?.isFiltered
+                                                ? computeRangeStats(filteredSensorData.s2)
+                                                : { y: eventData.sensor2.stats!.y, z: eventData.sensor2.stats!.z };
+                                              if (!rightStats || !leftStats) return null;
+                                              return (
                                               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                                                 <div className="p-3 rounded-lg bg-slate-800/50 border border-blue-500/20">
-                                                  <div className="text-[10px] text-slate-500 uppercase">Z Right Range</div>
+                                                  <div className="text-[10px] text-slate-500 uppercase">Z Right Range{filteredSensorData?.isFiltered ? ' (selected)' : ''}</div>
                                                   <div className="text-sm font-mono text-blue-300">
-                                                    {eventData.sensor1.stats.z.min.toFixed(4)} → {eventData.sensor1.stats.z.max.toFixed(4)} g
+                                                    {rightStats.z.min.toFixed(4)} → {rightStats.z.max.toFixed(4)} g
                                                   </div>
                                                 </div>
                                                 <div className="p-3 rounded-lg bg-slate-800/50 border border-amber-500/20">
-                                                  <div className="text-[10px] text-slate-500 uppercase">Z Left Range</div>
+                                                  <div className="text-[10px] text-slate-500 uppercase">Z Left Range{filteredSensorData?.isFiltered ? ' (selected)' : ''}</div>
                                                   <div className="text-sm font-mono text-amber-300">
-                                                    {eventData.sensor2.stats.z.min.toFixed(4)} → {eventData.sensor2.stats.z.max.toFixed(4)} g
+                                                    {leftStats.z.min.toFixed(4)} → {leftStats.z.max.toFixed(4)} g
                                                   </div>
                                                 </div>
                                                 <div className="p-3 rounded-lg bg-slate-800/50 border border-violet-500/20">
-                                                  <div className="text-[10px] text-slate-500 uppercase">Y Right Range</div>
+                                                  <div className="text-[10px] text-slate-500 uppercase">Y Right Range{filteredSensorData?.isFiltered ? ' (selected)' : ''}</div>
                                                   <div className="text-sm font-mono text-violet-300">
-                                                    {eventData.sensor1.stats.y.min.toFixed(4)} → {eventData.sensor1.stats.y.max.toFixed(4)} g
+                                                    {rightStats.y.min.toFixed(4)} → {rightStats.y.max.toFixed(4)} g
                                                   </div>
                                                 </div>
                                                 <div className="p-3 rounded-lg bg-slate-800/50 border border-rose-500/20">
-                                                  <div className="text-[10px] text-slate-500 uppercase">Y Left Range</div>
+                                                  <div className="text-[10px] text-slate-500 uppercase">Y Left Range{filteredSensorData?.isFiltered ? ' (selected)' : ''}</div>
                                                   <div className="text-sm font-mono text-rose-300">
-                                                    {eventData.sensor2.stats.y.min.toFixed(4)} → {eventData.sensor2.stats.y.max.toFixed(4)} g
+                                                    {leftStats.y.min.toFixed(4)} → {leftStats.y.max.toFixed(4)} g
                                                   </div>
                                                 </div>
                                               </div>
-                                            )}
+                                              );
+                                            })()}
 
                                             {/* Pulse timing analysis */}
                                             {pulseTimingAnalysis && (
@@ -1287,7 +1355,7 @@ const DataAnalysis: React.FC = () => {
                                                   <Activity className="w-4 h-4 text-cyan-400" />
                                                   <span className="text-sm font-semibold text-slate-200">Pulse Propagation Timing</span>
                                                   <Badge className="bg-cyan-600/15 text-cyan-300 border border-cyan-500/25 text-[10px]">
-                                                    Auto-detected
+                                                    {filteredSensorData?.isFiltered ? 'Selected Range' : 'Auto-detected'}
                                                   </Badge>
                                                 </div>
                                                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -1356,9 +1424,15 @@ const DataAnalysis: React.FC = () => {
                                                     </div>
                                                   </div>
                                                   <div className="p-2.5 rounded-lg bg-slate-800/60 border border-violet-500/20">
-                                                    <div className="text-[10px] text-slate-500 uppercase">Peak Delay</div>
-                                                    <div className="text-sm font-bold font-mono text-violet-300">{peakSpeedAnalysis ? `${peakSpeedAnalysis.diffSec.toFixed(3)}s` : '—'}</div>
-                                                  </div>
+                                                     <div className="text-[10px] text-slate-500 uppercase">Peak Delay</div>
+                                                     <div className="text-sm font-bold font-mono text-violet-300">{peakSpeedAnalysis ? `${peakSpeedAnalysis.diffSec.toFixed(3)}s` : '—'}</div>
+                                                     {peakSpeedAnalysis && (
+                                                       <div className="text-[9px] text-slate-500 mt-1 leading-relaxed">
+                                                         <div>R: <span className="text-blue-300 font-mono">{peakSpeedAnalysis.rightPeakTime}</span> ({peakSpeedAnalysis.rightPeakVal.toFixed(3)}g)</div>
+                                                         <div>L: <span className="text-amber-300 font-mono">{peakSpeedAnalysis.leftPeakTime}</span> ({peakSpeedAnalysis.leftPeakVal.toFixed(3)}g)</div>
+                                                       </div>
+                                                     )}
+                                                   </div>
                                                   {peakSpeedAnalysis && (
                                                      <div className="p-2.5 rounded-lg bg-teal-500/10 border border-teal-500/50 shadow-[0_0_12px_rgba(20,184,166,0.25)]">
                                                        <div className="text-[10px] text-slate-500 uppercase">Train Speed</div>
@@ -1513,6 +1587,9 @@ const DataAnalysis: React.FC = () => {
                                                 <>
                                                   <Badge className="bg-cyan-600/15 text-cyan-300 border border-cyan-500/25 text-[10px] font-mono">
                                                     {compZoomDomain[0].toFixed(1)}s — {compZoomDomain[1].toFixed(1)}s
+                                                  </Badge>
+                                                  <Badge className="bg-emerald-600/15 text-emerald-300 border border-emerald-500/25 text-[10px]">
+                                                    ✓ Analysis scoped to selection
                                                   </Badge>
                                                   <button
                                                     onClick={resetCompZoom}
