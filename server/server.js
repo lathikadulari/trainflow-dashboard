@@ -57,6 +57,17 @@ console.log('Loading ML routes...');
 app.use('/api/ml', require('./routes/ml'));
 console.log('ML routes loaded');
 
+// Database routes
+console.log('Loading database routes...');
+app.use('/api/database', require('./routes/database'));
+console.log('Database routes loaded');
+
+// External Public Alerts routes
+console.log('Loading external alerts routes...');
+const externalAlerts = require('./routes/externalAlerts');
+app.use('/api/v1/alerts', externalAlerts.router);
+console.log('External alerts routes loaded');
+
 // SSE endpoint for real-time ESP32 sensor data
 let mqttSseClients = [];
 
@@ -72,6 +83,11 @@ mqttService.setMessageCallback((topic, data) => {
         mqttSseClients.forEach(client => {
             client.res.write(`data: ${message}\n\n`);
         });
+
+        // Broadcast train alerts to external SSE subscribers
+        if (topic === 'trainflow/trainState' || topic.includes('alert') || topic.includes('train')) {
+            externalAlerts.broadcastAlert({ topic, data });
+        }
     }
 });
 

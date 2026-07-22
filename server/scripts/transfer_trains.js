@@ -1,6 +1,6 @@
 const { MongoClient } = require('mongodb');
 
-const REMOTE_URI = 'mongodb://16.176.209.82:27017/trainflow';
+const REMOTE_URI = 'mongodb://13.201.26.123:27017/trainflow';
 const LOCAL_URI = 'mongodb://localhost:27017/trainflow';
 
 async function transferData(remoteDb, localDb, startTime, endTime, trainLabel) {

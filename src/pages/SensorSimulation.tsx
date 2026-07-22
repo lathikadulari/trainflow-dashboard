@@ -204,7 +204,7 @@ const SensorPanel = React.memo(({ sensor, data, voltage, fft, dataSource, onExpa
                         <Cpu className="w-3 h-3" /> Analog Output (0-3.3V)
                     </div>
                     <div className="grid grid-cols-2 gap-4">
-                        {(['x', 'z'] as const).map((axis) => (
+                        {(['y', 'z'] as const).map((axis) => (
                             <div key={axis} className="space-y-1">
                                 <div className="flex justify-between text-[10px]">
                                     <span style={{ color: axisConfig[axis].color }}>{axis.toUpperCase()}</span>
@@ -217,7 +217,7 @@ const SensorPanel = React.memo(({ sensor, data, voltage, fft, dataSource, onExpa
                 </CardContent>
             </Card>
 
-            {(['x', 'z'] as const).map((axis) => (
+            {(['y', 'z'] as const).map((axis) => (
                 <Card key={axis} className="bg-[#16213e] border-0">
                     <CardHeader className="py-1.5 px-3">
                         <CardTitle className="text-xs" style={{ color: axisConfig[axis].color }}>
@@ -238,7 +238,7 @@ const SensorPanel = React.memo(({ sensor, data, voltage, fft, dataSource, onExpa
                     </div>
                 </CardHeader>
                 <CardContent className="p-2 space-y-2">
-                    {(['x', 'z'] as const).map((axis) => (
+                    {(['y', 'z'] as const).map((axis) => (
                         <div key={axis}>
                             <div className="text-[10px] mb-1" style={{ color: axisConfig[axis].color }}>
                                 {axisConfig[axis].name} FFT

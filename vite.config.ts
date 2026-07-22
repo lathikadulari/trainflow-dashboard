@@ -10,9 +10,15 @@ export default defineConfig(({ mode }) => ({
   appType: 'spa',
   server: {
     host: "::",
-    port: 8080,
+    port: 3000,
     fs: {
       strict: false,
+    },
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),

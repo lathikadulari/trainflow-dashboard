@@ -28,7 +28,7 @@
 
 #include <Wire.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
+#include <WiFiClient.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <Adafruit_ADS1X15.h>
@@ -38,10 +38,10 @@ const char* WIFI_SSID = "test";
 const char* WIFI_PASSWORD = "12345678";
 
 // HiveMQ Cloud MQTT
-const char* MQTT_SERVER = "8102284b29c24b4eb40e06ac182d1130.s1.eu.hivemq.cloud";
-const int MQTT_PORT = 8883;
-const char* MQTT_USER = "dulari";
-const char* MQTT_PASS = "Dulari@123";
+const char* MQTT_SERVER    = "13.235.248.117";
+const int   MQTT_PORT      = 1883;
+const char* MQTT_USER      = "trainflow";
+const char* MQTT_PASS      = "Trainflow@2026!";
 const char* MQTT_CLIENT_ID = "ESP32_SENSORLAB_SINGLE_01";
 
 // Topics for the new /sensors page setup
@@ -67,8 +67,8 @@ const uint32_t STATUS_INTERVAL_MS = 1000; // 1 Hz
 const uint32_t WIFI_RETRY_MS = 5000;
 const uint32_t MQTT_RETRY_MS = 3000;
 
-WiFiClientSecure secureClient;
-PubSubClient mqttClient(secureClient);
+WiFiClient netClient;
+PubSubClient mqttClient(netClient);
 Adafruit_ADS1115 ads;
 
 bool wifiConnected = false;
@@ -122,7 +122,7 @@ void connectWiFi() {
 void connectMQTT() {
   if (!wifiConnected) return;
 
-  secureClient.setInsecure();
+  
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setBufferSize(512);
   mqttClient.setKeepAlive(60);

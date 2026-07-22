@@ -1,161 +1,227 @@
 /*
   ============================================================
-  Dual ADXL335 — ADS1115 — ESP32 Dual-Core
-  SD Card Logging  +  HiveMQ Cloud MQTT (TLS)
-  ID: 3F8Z2QW (FIXED VERSION)
+  MAKUMBURA STATION — Dual ADXL335 + ADS1115 + SD Card
+  SIM7670C 4G → EC2 Mosquitto MQTT (AT Commands)
+  Station ID: MKB01
   ============================================================
 
-  CORE ASSIGNMENT:
-    Core 0 (MQTT Task) → WiFi connect, TLS MQTT publish, reconnect
-    Core 1 (Main Loop) → Sensor read, SD log, serial print
+  WIRING:
+    SIM7670C:  GPIO26 (ESP32 RX ← Module TX)
+               GPIO27 (ESP32 TX → Module RX)
+    ADS1115:   GPIO21 SDA, GPIO22 SCL, ADDR→GND (0x48)
+    SD Card:   GPIO18 CS, GPIO23 SCK, GPIO5 MOSI, GPIO19 MISO
 
-  I2C WIRING (ESP32 ↔ ADS1115):
-    GPIO21 SDA  →  ADS1115 SDA
-    GPIO22 SCL  →  ADS1115 SCL
-    3.3V        →  ADS1115 VDD
-    GND         →  ADS1115 GND
-    ADDR        →  GND  (I2C: 0x48)
-
-  SPI WIRING (ESP32 ↔ SD Card):
-    GPIO18  →  CS
-    GPIO23  →  SCK
-    GPIO5   →  MOSI
-    GPIO19  →  MISO
-    3.3V    →  VCC
-    GND     →  GND
-
-  ADXL335 → ADS1115 CHANNELS:
-    A0 → Sensor 1 X-axis   A1 → Sensor 1 Z-axis
-    A2 → Sensor 2 X-axis   A3 → Sensor 2 Z-axis
+    ADXL335 → ADS1115:
+      A0 → Right Sensor Y    A1 → Right Sensor Z   (Sensor1 = Right)
+      A2 → Left Sensor Y     A3 → Left Sensor Z    (Sensor2 = Left)
 
   MQTT TOPICS:
-    adxl335/sensor1   → {"x_g":..., "z_g":..., "x_v":..., "z_v":...}
-    adxl335/sensor2   → {"x_g":..., "z_g":..., "x_v":..., "z_v":...}
-    adxl335/status    → {"sample":..., "sd":..., "wifi":..., "mqtt":...}
-
-  LIBRARIES (Arduino Library Manager):
-    → "Adafruit ADS1X15"  by Adafruit
-    → "PubSubClient"      by Nick O'Leary
-    → SD + SPI + WiFi + WiFiClientSecure (built-in ESP32 core)
+    makumbura/sensor1  → Right sensor: {"station":"Makumbura","y_g":...,"z_g":...,"y_v":...,"z_v":...}
+    makumbura/sensor2  → Left sensor:  {"station":"Makumbura","y_g":...,"z_g":...,"y_v":...,"z_v":...}
+    makumbura/status   → {"station":"Makumbura","sample":...,"sd":...,"mqtt":...}
   ============================================================
 */
 
 #include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
-#include <WiFi.h>
-#include <WiFiClientSecure.h>
-#include <PubSubClient.h>
 #include <Adafruit_ADS1X15.h>
 
-// ── WiFi ──────────────────────────────────────────────────────────────────────
-const char* WIFI_SSID     = "Lathika 4G";       // ← change
-const char* WIFI_PASSWORD = "asdf12345";   // ← change
+// ── SIM7670C UART ────────────────────────────────────────────
+#define RX_PIN 26  // ESP32 RX pin (module TX)
+#define TX_PIN 27  // ESP32 TX pin (module RX)
 
-// ── HiveMQ Cloud MQTT (TLS port 8883) ────────────────────────────────────────
-const char* MQTT_SERVER   = "8102284b29c24b4eb40e06ac182d1130.s1.eu.hivemq.cloud";
-const int   MQTT_PORT     = 8883;
-const char* MQTT_USER     = "dulari";
-const char* MQTT_PASS     = "Dulari@123";
-const char* MQTT_CLIENT_ID = "ESP32_SIMULATOR_SIM01";
+// ── EC2 MQTT broker credentials ─────────────────────────────
+String mqtt_server = "13.235.248.117";
+String mqtt_port   = "1883";
+String mqtt_user   = "trainflow";
+String mqtt_pass   = "Trainflow@2026!";
 
-// HiveMQ Cloud uses a trusted CA — set to insecure for simplicity
-// To use full cert verification, paste HiveMQ's root CA below
-#define MQTT_USE_INSECURE true
+const char* mqttHosts[]    = {
+  "13.235.248.117"
+};
+const int mqttHostsCount   = 1;
+const char* mqttPorts[]    = {"1883"};
+const int mqttPortsCount   = 1;
 
-// ── MQTT Topics ───────────────────────────────────────────────────────────────
-const char* TOPIC_S1     = "adxl335/sensor1";
-const char* TOPIC_S2     = "adxl335/sensor2";
-const char* TOPIC_STATUS = "adxl335/status";
+// ── MQTT Topics (Makumbura) ─────────────────────────────────
+String topic_sensor1 = "makumbura/sensor1";
+String topic_sensor2 = "makumbura/sensor2";
+String topic_status  = "makumbura/status";
 
-// ── I2C Pins ──────────────────────────────────────────────────────────────────
-#define SDA_PIN  21
-#define SCL_PIN  22
+// ── I2C / ADS1115 ───────────────────────────────────────────
+#define SDA_PIN      21
+#define SCL_PIN      22
+#define ADS_ADDRESS  0x48
 
-// ── SPI / SD Pins ─────────────────────────────────────────────────────────────
+Adafruit_ADS1115 ads;
+
+// ── ADXL335 Calibration ─────────────────────────────────────
+const float SUPPLY_VOLTAGE = 3.3f;
+const float ZERO_G_VOLTAGE = SUPPLY_VOLTAGE / 2.0f;
+const float SENSITIVITY_V  = 0.300f;
+
+// ── SPI / SD Card ───────────────────────────────────────────
 #define SD_CS    18
 #define SD_SCK   23
 #define SD_MOSI   5
 #define SD_MISO  19
 
-// ── ADS1115 ───────────────────────────────────────────────────────────────────
-#define ADS_ADDRESS  0x48
-
-// ── ADXL335 Calibration ───────────────────────────────────────────────────────
-const float SUPPLY_VOLTAGE = 3.3f;
-const float ZERO_G_VOLTAGE = SUPPLY_VOLTAGE / 2.0f;
-const float SENSITIVITY_V  = 0.300f;
-
-// ── Timing ────────────────────────────────────────────────────────────────────
-const uint32_t SAMPLE_INTERVAL_MS   = 100;    // 10 Hz
-const uint32_t SD_FLUSH_INTERVAL_MS = 1000;   // flush SD every 1 s
-const uint32_t MQTT_PUBLISH_INTERVAL = 200;   // publish every 200 ms (5 Hz)
-const uint32_t WIFI_RETRY_INTERVAL  = 5000;   // WiFi retry interval
-const uint32_t MQTT_RETRY_INTERVAL  = 3000;   // MQTT reconnect interval
-const uint8_t  SD_MAX_RETRIES       = 5;
-
-// ── SD Buffer ─────────────────────────────────────────────────────────────────
-#define BUFFER_ROWS  10
-const char* LOG_FILE = "/data.csv";
-
-// ── Shared Data (Core 0 ↔ Core 1) ────────────────────────────────────────────
-// Protected by mutex — Core 1 writes, Core 0 reads for MQTT publish
-struct SensorData {
-  float x_g, z_g;
-  float x_voltage, z_voltage;
-};
-
-struct SharedState {
-  SensorData s1;
-  SensorData s2;
-  uint32_t   sampleIndex;
-  bool       sdReady;
-  bool       dataFresh;   // true when new data is ready to publish
-};
-
-SemaphoreHandle_t dataMutex;
-SharedState       shared;
-
-// ── Globals (Core 1 owned) ────────────────────────────────────────────────────
-Adafruit_ADS1115 ads;
+const char* LOG_FILE = "/makumbura_data.csv";
 bool     sdReady      = false;
 uint8_t  sdRetryCount = 0;
-uint32_t sampleIndex  = 0;
+const uint8_t SD_MAX_RETRIES = 5;
+
 String   csvBuffer    = "";
 uint8_t  bufferedRows = 0;
+#define  BUFFER_ROWS  10
 
-uint32_t lastSampleTime   = 0;
-uint32_t lastFlushTime    = 0;
-uint32_t lastSDRetryTime  = 0;
+// ── Timing ──────────────────────────────────────────────────────
+unsigned long lastPublishTime     = 0;
+const long    publishInterval     = 50;           // 20 Hz MQTT publish
+unsigned long lastStatusTime      = 0;
+const long    statusInterval      = 2000;         // status every 2 s
+unsigned long lastReconnectAttempt = 0;
+const unsigned long reconnectIntervalMs = 10000;
+unsigned long lastSampleTime      = 0;
+const uint32_t SAMPLE_INTERVAL_MS = 20;           // 50 Hz sensor read
+unsigned long lastFlushTime       = 0;
+const uint32_t SD_FLUSH_INTERVAL  = 1000;
+unsigned long lastSDRetryTime     = 0;
 
-// ── Globals (Core 0 owned) ────────────────────────────────────────────────────
-WiFiClientSecure secureClient;
-PubSubClient     mqttClient(secureClient);
+bool     isConnected = false;
+uint32_t sampleIndex = 0;
 
-bool     wifiConnected = false;
-bool     mqttConnected = false;
-uint32_t lastWifiRetry = 0;
-uint32_t lastMqttRetry = 0;
-uint32_t lastPublish   = 0;
+// ── Sensor data struct ──────────────────────────────────────────
+struct SensorData {
+  float y_g, z_g;
+  float y_v, z_v;
+  unsigned long t_us;   // microsecond timestamp of this reading
+};
 
-// ═════════════════════════════════════════════════════════════════════════════
-// SENSOR HELPERS (Core 1)
-// ═════════════════════════════════════════════════════════════════════════════
+SensorData sensor1, sensor2;
+
+// ── Forward declarations ────────────────────────────────────
+String sendATCommand(String command, String expected_response, int timeout);
+bool   waitFor(String expected, int timeout);
+void   publishMQTT(String topic, String payload);
+bool   connectMQTTWithFallback();
+bool   ensureNetworkRegistration();
+void   resetMQTTStack();
+bool   waitForModuleReady();
+
+// ═════════════════════════════════════════════════════════════
+// SIM7670C MODULE BOOT WAIT
+// ═════════════════════════════════════════════════════════════
+bool waitForModuleReady() {
+  Serial.println("\n--- [MAKUMBURA] Waiting for SIM7670C to boot ---");
+
+  // Step 1: Wait up to 20 seconds for any boot-complete signal
+  //   SIM7670C outputs: SMS DONE, +CGEV: EPS PDN ACT, etc.
+  //   A7670C outputs:   *ATREADY, PB DONE
+  unsigned long start = millis();
+  bool gotReady = false;
+
+  while (millis() - start < 20000) {
+    String chunk = "";
+    while (Serial2.available()) {
+      char c = Serial2.read();
+      chunk += c;
+    }
+    if (chunk.length() > 0) {
+      Serial.print(chunk);  // echo boot messages
+
+      if (chunk.indexOf("SMS DONE") != -1 ||
+          chunk.indexOf("*ATREADY") != -1 ||
+          chunk.indexOf("PB DONE") != -1 ||
+          chunk.indexOf("+CGEV: EPS PDN ACT") != -1) {
+        gotReady = true;
+        Serial.println("\n  >> Boot signal detected!");
+        break;
+      }
+    }
+    delay(100);
+  }
+
+  if (!gotReady) {
+    Serial.println("\n  Boot signal timeout (20s) — proceeding anyway...");
+  }
+
+  // Step 2: Wait for +CGEV URC storm to settle (these keep coming)
+  Serial.println("  Waiting for URC storm to settle...");
+  delay(3000);
+
+  // Step 3: Aggressive flush — drain everything in the buffer
+  Serial.println("  Flushing serial buffer...");
+  unsigned long flushStart = millis();
+  while (millis() - flushStart < 2000) {
+    while (Serial2.available()) {
+      Serial2.read();  // discard
+    }
+    delay(50);
+  }
+
+  // Step 4: Test AT command — flush between each retry
+  Serial.println("  Testing AT command...");
+  for (int i = 0; i < 10; i++) {
+    // Flush any URCs that arrived since last attempt
+    while (Serial2.available()) Serial2.read();
+    delay(100);
+
+    // Send AT and look for OK
+    Serial2.println("AT");
+    delay(500);
+
+    String resp = "";
+    unsigned long t = millis();
+    while (millis() - t < 2000) {
+      while (Serial2.available()) {
+        resp += (char)Serial2.read();
+      }
+      if (resp.indexOf("OK") != -1) break;
+      delay(10);
+    }
+
+    Serial.print("  AT attempt "); Serial.print(i + 1);
+    Serial.print("/10: ["); Serial.print(resp); Serial.println("]");
+
+    if (resp.indexOf("OK") != -1) {
+      Serial.println("  SIM7670C is ready!");
+      // Disable echo to keep responses clean
+      while (Serial2.available()) Serial2.read();
+      Serial2.println("ATE0");
+      delay(500);
+      while (Serial2.available()) Serial2.read();
+      return true;
+    }
+
+    delay(1000);  // wait before next retry
+  }
+
+  Serial.println("  WARNING: No AT OK response after 10 attempts.");
+  Serial.println("  Check TX/RX wiring and module power.");
+  return false;
+}
+
+// ═════════════════════════════════════════════════════════════
+// SENSOR HELPERS
+// ═════════════════════════════════════════════════════════════
 float rawToVoltage(int16_t raw) { return raw * 0.000125f; }
 float voltageToG(float v)       { return (v - ZERO_G_VOLTAGE) / SENSITIVITY_V; }
 
-SensorData readSensor(uint8_t ch_x, uint8_t ch_z) {
+SensorData readSensor(uint8_t ch_y, uint8_t ch_z) {
   SensorData d;
-  d.x_voltage = rawToVoltage(ads.readADC_SingleEnded(ch_x));
-  d.z_voltage = rawToVoltage(ads.readADC_SingleEnded(ch_z));
-  d.x_g       = voltageToG(d.x_voltage);
-  d.z_g       = voltageToG(d.z_voltage);
+  d.t_us = micros();   // timestamp BEFORE reading starts
+  d.y_v = rawToVoltage(ads.readADC_SingleEnded(ch_y));
+  d.z_v = rawToVoltage(ads.readADC_SingleEnded(ch_z));
+  d.y_g = voltageToG(d.y_v);
+  d.z_g = voltageToG(d.z_v);
   return d;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// SD HELPERS (Core 1)
-// ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════
+// SD CARD HELPERS
+// ═════════════════════════════════════════════════════════════
 void printSDInfo() {
   uint8_t  t  = SD.cardType();
   uint32_t mb = (uint32_t)(SD.cardSize() / (1024 * 1024));
@@ -171,7 +237,7 @@ void writeCSVHeader() {
   File f = SD.open(LOG_FILE, FILE_APPEND);
   if (!f) return;
   if (f.size() == 0) {
-    f.println("sample_index,s1_x_g,s1_z_g,s1_x_v,s1_z_v,s2_x_g,s2_z_g,s2_x_v,s2_z_v");
+    f.println("sample_index,s1_t_us,s1_y_g,s1_z_g,s1_y_v,s1_z_v,s2_t_us,s2_y_g,s2_z_g,s2_y_v,s2_z_v");
     Serial.println("  SD: header written.");
   } else {
     Serial.print("  SD: appending (");
@@ -181,8 +247,18 @@ void writeCSVHeader() {
 }
 
 bool tryInitSD() {
+  pinMode(SD_CS, OUTPUT);
+  digitalWrite(SD_CS, HIGH);
   SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
   if (SD.begin(SD_CS, SPI, 4000000)) {
+    printSDInfo();
+    writeCSVHeader();
+    return true;
+  }
+  SD.end();
+  delay(20);
+  SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
+  if (SD.begin(SD_CS, SPI, 1000000)) {
     printSDInfo();
     writeCSVHeader();
     return true;
@@ -202,38 +278,42 @@ void flushBufferToSD() {
 }
 
 void bufferRow(uint32_t idx, const SensorData& s1, const SensorData& s2) {
-  csvBuffer += idx;                          csvBuffer += ',';
-  csvBuffer += String(s1.x_g, 4);           csvBuffer += ',';
-  csvBuffer += String(s1.z_g, 4);           csvBuffer += ',';
-  csvBuffer += String(s1.x_voltage, 4);     csvBuffer += ',';
-  csvBuffer += String(s1.z_voltage, 4);     csvBuffer += ',';
-  csvBuffer += String(s2.x_g, 4);           csvBuffer += ',';
-  csvBuffer += String(s2.z_g, 4);           csvBuffer += ',';
-  csvBuffer += String(s2.x_voltage, 4);     csvBuffer += ',';
-  csvBuffer += String(s2.z_voltage, 4);     csvBuffer += '\n';
+  csvBuffer += idx;                      csvBuffer += ',';
+  csvBuffer += String(s1.t_us);         csvBuffer += ',';
+  csvBuffer += String(s1.y_g, 4);       csvBuffer += ',';
+  csvBuffer += String(s1.z_g, 4);       csvBuffer += ',';
+  csvBuffer += String(s1.y_v, 4);       csvBuffer += ',';
+  csvBuffer += String(s1.z_v, 4);       csvBuffer += ',';
+  csvBuffer += String(s2.t_us);         csvBuffer += ',';
+  csvBuffer += String(s2.y_g, 4);       csvBuffer += ',';
+  csvBuffer += String(s2.z_g, 4);       csvBuffer += ',';
+  csvBuffer += String(s2.y_v, 4);       csvBuffer += ',';
+  csvBuffer += String(s2.z_v, 4);       csvBuffer += '\n';
   bufferedRows++;
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// SERIAL PRINT (Core 1)
-// ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════
+// SERIAL PRINT
+// ═════════════════════════════════════════════════════════════
 void printReadings(uint32_t idx, const SensorData& s1, const SensorData& s2) {
   Serial.println("--------------------------------------------------");
-  Serial.print("[#"); Serial.print(idx); Serial.print("]");
-  Serial.print("  WiFi:"); Serial.print(wifiConnected ? "OK" : "--");
-  Serial.print("  MQTT:"); Serial.println(mqttConnected ? "OK" : "--");
+  Serial.print("[MAKUMBURA #"); Serial.print(idx); Serial.print("]");
+  Serial.print("  MQTT:"); Serial.println(isConnected ? "OK" : "--");
 
-  Serial.print("Sensor 1 | X: "); Serial.print(s1.x_g, 3);
-  Serial.print(" g (");           Serial.print(s1.x_voltage, 4);
-  Serial.print(" V)   Z: ");      Serial.print(s1.z_g, 3);
-  Serial.print(" g (");           Serial.print(s1.z_voltage, 4);
-  Serial.println(" V)");
+  Serial.print("S1 @"); Serial.print(s1.t_us);
+  Serial.print("us | Y:"); Serial.print(s1.y_g, 3);
+  Serial.print("g (");     Serial.print(s1.y_v, 4);
+  Serial.print("V) Z:");   Serial.print(s1.z_g, 3);
+  Serial.print("g (");     Serial.print(s1.z_v, 4);
+  Serial.println("V)");
 
-  Serial.print("Sensor 2 | X: "); Serial.print(s2.x_g, 3);
-  Serial.print(" g (");           Serial.print(s2.x_voltage, 4);
-  Serial.print(" V)   Z: ");      Serial.print(s2.z_g, 3);
-  Serial.print(" g (");           Serial.print(s2.z_voltage, 4);
-  Serial.println(" V)");
+  Serial.print("S2 @"); Serial.print(s2.t_us);
+  Serial.print("us | Y:"); Serial.print(s2.y_g, 3);
+  Serial.print("g (");     Serial.print(s2.y_v, 4);
+  Serial.print("V) Z:");   Serial.print(s2.z_g, 3);
+  Serial.print("g (");     Serial.print(s2.z_v, 4);
+  Serial.print("V)  dt="); Serial.print(s2.t_us - s1.t_us);
+  Serial.println("us");
 
   if (sdReady) {
     Serial.print("SD: buf "); Serial.print(bufferedRows);
@@ -243,209 +323,87 @@ void printReadings(uint32_t idx, const SensorData& s1, const SensorData& s2) {
   }
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// MQTT HELPERS (Core 0)
-// ═════════════════════════════════════════════════════════════════════════════
-void connectWiFi() {
-  if (WiFi.status() == WL_CONNECTED) { wifiConnected = true; return; }
-  Serial.print("  WiFi connecting to "); Serial.print(WIFI_SSID); Serial.print(" ...");
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  uint32_t start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 8000) {
-    vTaskDelay(200 / portTICK_PERIOD_MS);
-    Serial.print(".");
-  }
-
-  if (WiFi.status() == WL_CONNECTED) {
-    wifiConnected = true;
-    Serial.print(" connected! IP: ");
-    Serial.println(WiFi.localIP());
-    vTaskDelay(500 / portTICK_PERIOD_MS); // Give settling time for TLS compatibility
-  } else {
-    wifiConnected = false;
-    Serial.println(" failed. Will retry.");
-  }
-}
-
-void connectMQTT() {
-  if (!wifiConnected) return;
-  Serial.print("  MQTT connecting ... ");
-
-#if MQTT_USE_INSECURE
-  secureClient.setInsecure();   // skip CA verification (simple setup)
-#endif
-
-  mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
-  mqttClient.setBufferSize(512);
-  mqttClient.setKeepAlive(60); // INCREASED FROM 30 to 60 to prevent TLS drop-offs
-
-  // DYNAMIC CLIENT ID: prevents HiveMQ from kicking us out if a "ghost" session is open
-  String dynamicClientId = String(MQTT_CLIENT_ID) + "_" + String(random(0xffff), HEX);
-
-  if (mqttClient.connect(dynamicClientId.c_str(), MQTT_USER, MQTT_PASS)) {
-    mqttConnected = true;
-    Serial.println("connected!");
-    // Publish online status
-    mqttClient.publish(TOPIC_STATUS,
-      "{\"status\":\"online\",\"device\":\"ESP32_SIMULATOR_SIM01\"}", true);
-  } else {
-    mqttConnected = false;
-    Serial.print("failed, rc="); Serial.println(mqttClient.state());
-  }
-}
-
-void publishSensor(const char* topic, const SensorData& d) {
-  char payload[120];
-  snprintf(payload, sizeof(payload),
-    "{\"x_g\":%.4f,\"z_g\":%.4f,\"x_v\":%.4f,\"z_v\":%.4f}",
-    d.x_g, d.z_g, d.x_voltage, d.z_voltage);
-  mqttClient.publish(topic, payload);
-}
-
-void publishStatus(uint32_t idx) {
-  char payload[160];
-  snprintf(payload, sizeof(payload),
-    "{\"sample\":%lu,\"sd\":%s,\"wifi\":%s,\"mqtt\":%s}",
-    (unsigned long)idx,
-    sdReady      ? "true" : "false",
-    wifiConnected ? "true" : "false",
-    mqttConnected ? "true" : "false");
-  mqttClient.publish(TOPIC_STATUS, payload);
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
-// CORE 0 TASK — WiFi + MQTT
-// ═════════════════════════════════════════════════════════════════════════════
-void mqttTask(void* pvParameters) {
-  Serial.println("[Core 0] MQTT task started.");
-  connectWiFi();
-  connectMQTT();
-
-  for (;;) {
-    uint32_t now = millis();
-
-    // ── WiFi watchdog ───────────────────────────────────────────────────────
-    if (WiFi.status() != WL_CONNECTED) {
-      wifiConnected = false;
-      mqttConnected = false;
-      if (now - lastWifiRetry >= WIFI_RETRY_INTERVAL) {
-        lastWifiRetry = now;
-        connectWiFi();
-      }
-    } else {
-      wifiConnected = true;
-    }
-
-    // ── MQTT reconnect ──────────────────────────────────────────────────────
-    if (wifiConnected && !mqttClient.connected()) {
-      mqttConnected = false;
-      if (now - lastMqttRetry >= MQTT_RETRY_INTERVAL) {
-        lastMqttRetry = now;
-        connectMQTT();
-      }
-    } else if (mqttClient.connected()) {
-      mqttConnected = true;
-      mqttClient.loop();
-    }
-
-    // ── Publish fresh sensor data ───────────────────────────────────────────
-    if (mqttConnected && (now - lastPublish >= MQTT_PUBLISH_INTERVAL)) {
-      lastPublish = now;
-
-      // Safely copy shared data
-      if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-        SensorData  s1   = shared.s1;
-        SensorData  s2   = shared.s2;
-        uint32_t    idx  = shared.sampleIndex;
-        shared.dataFresh = false;
-        xSemaphoreGive(dataMutex);
-
-        publishSensor(TOPIC_S1, s1);
-        publishSensor(TOPIC_S2, s2);
-        publishStatus(idx);
-      }
-    }
-
-    vTaskDelay(10 / portTICK_PERIOD_MS);  // yield to scheduler
-  }
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════
 // SETUP
-// ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════
 void setup() {
   Serial.begin(115200);
-  randomSeed(analogRead(0)); // Initialize randomness for dynamic Client ID
-  
-  Serial.println("\n=== Dual ADXL335 | ADS1115 | SD + MQTT | ESP32 Dual-Core ===\n");
-  Serial.print("Running on Core "); Serial.println(xPortGetCoreID());
+  Serial2.begin(115200, SERIAL_8N1, RX_PIN, TX_PIN);
+  delay(1000);  // brief initial delay
 
-  // ── Mutex for shared sensor data ───────────────────────────────────────────
-  dataMutex = xSemaphoreCreateMutex();
+  Serial.println("============================================================");
+  Serial.println("  MAKUMBURA STATION | Dual ADXL335 | ADS1115 | SD + 4G MQTT");
+  Serial.println("  SIM7670C → EC2 Mosquitto (AT Commands)");
+  Serial.println("============================================================");
 
-  // ── ADS1115 (Core 1, I2C) ──────────────────────────────────────────────────
-  Serial.println("[ ADS1115 Init ]");
+  // ── ADS1115 Init ──────────────────────────────────────────
+  Serial.println("\n[ ADS1115 Init ]");
   Wire.begin(SDA_PIN, SCL_PIN);
   if (!ads.begin(ADS_ADDRESS)) {
     Serial.println("  FATAL: ADS1115 not found! Halting.");
     while (1);
   }
   ads.setGain(GAIN_ONE);
-  Serial.println("  ADS1115 OK.\n");
+  ads.setDataRate(RATE_ADS1115_860SPS);  // 860 SPS = ~1.2ms per read (was default 128 SPS = ~7.8ms)
+  Serial.println("  ADS1115 OK — 860 SPS mode.");
 
-  // ── SD Card ────────────────────────────────────────────────────────────────
-  Serial.println("[ SD Card Init ]");
+  // ── SD Card Init ──────────────────────────────────────────
+  Serial.println("\n[ SD Card Init ]");
   sdReady = tryInitSD();
-  Serial.println(sdReady ? "  SD OK.\n" : "  SD not ready — retrying in loop.\n");
+  Serial.println(sdReady ? "  SD OK." : "  SD not ready — retrying in loop.");
 
-  // ── Launch MQTT task on Core 0 ─────────────────────────────────────────────
-  xTaskCreatePinnedToCore(
-    mqttTask,       // function
-    "MQTT_Task",    // name
-    16384,          // stack size INCREASED from 8192 to 16384 for heavy TLS Handshakes
-    NULL,           // params
-    1,              // priority
-    NULL,           // handle
-    0               // Core 0
-  );
+  // ── Wait for SIM7670C module to fully boot ────────────────
+  waitForModuleReady();
+
+  // ── 4G Network + MQTT ─────────────────────────────────────
+  if (!ensureNetworkRegistration()) {
+    Serial.println("Could not register on network now. Will retry in loop.");
+    return;
+  }
+
+  Serial.println("\n--- Cleaning old MQTT sessions ---");
+  resetMQTTStack();
+
+  isConnected = connectMQTTWithFallback();
+
+  // Publish online status
+  if (isConnected) {
+    String onlineMsg = "{\"station\":\"Makumbura\",\"status\":\"online\",\"device\":\"MKB01\",\"connection\":\"4G_SIM7670C\"}";
+    publishMQTT(topic_status, onlineMsg);
+  }
 
   lastSampleTime  = millis();
   lastFlushTime   = millis();
   lastSDRetryTime = millis();
-
-  Serial.println("Starting measurements on Core 1...\n");
 }
 
-// ═════════════════════════════════════════════════════════════════════════════
-// LOOP — Core 1: Sensor read + SD log + share data
-// ═════════════════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════
+// LOOP
+// ═════════════════════════════════════════════════════════════
 void loop() {
-  uint32_t now = millis();
+  unsigned long now = millis();
 
-  // ── 1. Read sensors at SAMPLE_INTERVAL_MS ─────────────────────────────────
+  // ── MQTT Reconnect ────────────────────────────────────────
+  if (!isConnected && now - lastReconnectAttempt >= reconnectIntervalMs) {
+    lastReconnectAttempt = now;
+    if (ensureNetworkRegistration()) {
+      resetMQTTStack();
+      isConnected = connectMQTTWithFallback();
+    }
+  }
+
+  // ── Read Sensors at 10 Hz ─────────────────────────────────
   if (now - lastSampleTime >= SAMPLE_INTERVAL_MS) {
     lastSampleTime = now;
 
-    SensorData s1 = readSensor(0, 1);
-    SensorData s2 = readSensor(2, 3);
+    sensor1 = readSensor(0, 1);   // ADS ch0=Y, ch1=Z
+    sensor2 = readSensor(2, 3);   // ADS ch2=Y, ch3=Z
 
-    printReadings(sampleIndex, s1, s2);
-
-    // Share with Core 0 (MQTT task)
-    if (xSemaphoreTake(dataMutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-      shared.s1          = s1;
-      shared.s2          = s2;
-      shared.sampleIndex = sampleIndex;
-      shared.sdReady     = sdReady;
-      shared.dataFresh   = true;
-      xSemaphoreGive(dataMutex);
-    }
+    printReadings(sampleIndex, sensor1, sensor2);
 
     // SD buffer
     if (sdReady) {
-      bufferRow(sampleIndex, s1, s2);
+      bufferRow(sampleIndex, sensor1, sensor2);
       if (bufferedRows >= BUFFER_ROWS) {
         flushBufferToSD();
         Serial.println("  SD: flushed (buffer full).");
@@ -455,8 +413,37 @@ void loop() {
     sampleIndex++;
   }
 
-  // ── 2. Timed SD flush ─────────────────────────────────────────────────────
-  if (sdReady && (now - lastFlushTime >= SD_FLUSH_INTERVAL_MS)) {
+  // ── Publish sensor data via MQTT at 20 Hz ─────────────────
+  if (isConnected && (now - lastPublishTime >= publishInterval)) {
+    lastPublishTime = now;
+
+    // Sensor 1
+    String p1 = "{\"station\":\"Makumbura\",\"sensor\":1,\"t_us\":"
+              + String(sensor1.t_us) + ",\"y_g\":"
+              + String(sensor1.y_g, 4) + ",\"z_g\":" + String(sensor1.z_g, 4)
+              + ",\"y_v\":" + String(sensor1.y_v, 4) + ",\"z_v\":" + String(sensor1.z_v, 4) + "}";
+    publishMQTT(topic_sensor1, p1);
+
+    // Sensor 2
+    String p2 = "{\"station\":\"Makumbura\",\"sensor\":2,\"t_us\":"
+              + String(sensor2.t_us) + ",\"y_g\":"
+              + String(sensor2.y_g, 4) + ",\"z_g\":" + String(sensor2.z_g, 4)
+              + ",\"y_v\":" + String(sensor2.y_v, 4) + ",\"z_v\":" + String(sensor2.z_v, 4) + "}";
+    publishMQTT(topic_sensor2, p2);
+  }
+
+  // ── Publish status at lower rate ──────────────────────────
+  if (isConnected && (now - lastStatusTime >= statusInterval)) {
+    lastStatusTime = now;
+
+    String ps = "{\"station\":\"Makumbura\",\"sample\":" + String(sampleIndex)
+              + ",\"sd\":" + String(sdReady ? "true" : "false")
+              + ",\"mqtt\":" + String(isConnected ? "true" : "false") + "}";
+    publishMQTT(topic_status, ps);
+  }
+
+  // ── Timed SD flush ────────────────────────────────────────
+  if (sdReady && (now - lastFlushTime >= SD_FLUSH_INTERVAL)) {
     lastFlushTime = now;
     if (bufferedRows > 0) {
       flushBufferToSD();
@@ -464,9 +451,8 @@ void loop() {
     }
   }
 
-  // ── 3. Non-blocking SD retry ──────────────────────────────────────────────
-  if (!sdReady && sdRetryCount < SD_MAX_RETRIES &&
-      (now - lastSDRetryTime >= 2000)) {
+  // ── SD retry ──────────────────────────────────────────────
+  if (!sdReady && sdRetryCount < SD_MAX_RETRIES && (now - lastSDRetryTime >= 2000)) {
     lastSDRetryTime = now;
     sdRetryCount++;
     Serial.print("  SD retry "); Serial.print(sdRetryCount);
@@ -474,4 +460,160 @@ void loop() {
     sdReady = tryInitSD();
     Serial.println(sdReady ? "OK!" : "failed.");
   }
+
+  // ── Serial passthrough for debugging AT commands ──────────
+  if (Serial.available()) {
+    Serial2.print(Serial.readString());
+  }
+  if (Serial2.available()) {
+    Serial.print(Serial2.readString());
+  }
+}
+
+// ═════════════════════════════════════════════════════════════
+// MQTT STACK RESET (AT Commands)
+// ═════════════════════════════════════════════════════════════
+void resetMQTTStack() {
+  sendATCommand("AT+CMQTTDISC=0,60", "OK", 2000);
+  sendATCommand("AT+CMQTTREL=0", "OK", 2000);
+  sendATCommand("AT+CMQTTSTOP", "OK", 3000);
+  delay(400);
+
+  sendATCommand("AT+CMQTTSTART", "OK", 4000);
+  delay(300);
+  // server_type = 0 (plain TCP). 1 = SSL and would cause CMQTTCONNECT error 3 / 32
+  sendATCommand("AT+CMQTTACCQ=0,\"ESP32_Makumbura_MKB01\",0", "OK", 4000);
+  delay(300);
+}
+
+// ═════════════════════════════════════════════════════════════
+// 4G NETWORK REGISTRATION
+// ═════════════════════════════════════════════════════════════
+bool ensureNetworkRegistration() {
+  Serial.println("\n--- [MAKUMBURA] Waiting for 4G Network ---");
+  for (int i = 0; i < 20; i++) {
+    String status = sendATCommand("AT+CEREG?", "OK", 1500);
+    if (status.indexOf("+CEREG: 0,1") != -1 || status.indexOf("+CEREG: 0,5") != -1) {
+      Serial.println("[MAKUMBURA] 4G Network Connected");
+      delay(1500);
+      return true;
+    }
+    Serial.println("  Still searching for network...");
+    delay(1000);
+  }
+  return false;
+}
+
+// ═════════════════════════════════════════════════════════════
+// MQTT CONNECT WITH HOST/PORT FALLBACK
+// ═════════════════════════════════════════════════════════════
+bool connectMQTTWithFallback() {
+  Serial.println("\n--- [MAKUMBURA] Connecting to EC2 broker ---");
+  for (int h = 0; h < mqttHostsCount; h++) {
+    mqtt_server = mqttHosts[h];
+    for (int i = 0; i < mqttPortsCount; i++) {
+      mqtt_port = mqttPorts[i];
+      Serial.println("  Trying " + mqtt_server + ":" + mqtt_port + "...");
+
+      String connectCmd = "AT+CMQTTCONNECT=0,\"tcp://"
+                        + mqtt_server + ":" + mqtt_port
+                        + "\",60,1,\"" + mqtt_user + "\",\"" + mqtt_pass + "\"";
+      String response = sendATCommand(connectCmd, "OK", 15000);
+
+      if (response.indexOf("+CMQTTCONNECT: 0,0") != -1) {
+        Serial.println("[MAKUMBURA] Connected to EC2 MQTT at " + mqtt_server + ":" + mqtt_port);
+        return true;
+      }
+
+      Serial.println("  Connect failed at " + mqtt_server + ":" + mqtt_port);
+      sendATCommand("AT+CMQTTDISC=0,60", "OK", 2000);
+      delay(800);
+    }
+  }
+
+  Serial.println("[MAKUMBURA] Failed to connect on all host/port combos.");
+  return false;
+}
+
+// ═════════════════════════════════════════════════════════════
+// MQTT PUBLISH (AT Commands)
+// ═════════════════════════════════════════════════════════════
+void publishMQTT(String topic, String payload) {
+  unsigned long totalStart = millis();
+
+  Serial2.print("AT+CMQTTTOPIC=0,");
+  Serial2.println(topic.length());
+  if (waitFor(">", 500)) {
+    Serial2.print(topic);
+    waitFor("OK", 500);
+  } else {
+    Serial.println("[MAKUMBURA] Topic setup failed (module busy)");
+    isConnected = false;
+    return;
+  }
+
+  Serial2.print("AT+CMQTTPAYLOAD=0,");
+  Serial2.println(payload.length());
+  if (waitFor(">", 500)) {
+    Serial2.print(payload);
+    waitFor("OK", 500);
+  } else {
+    Serial.println("[MAKUMBURA] Payload setup failed (module busy)");
+    isConnected = false;
+    return;
+  }
+
+  Serial2.println("AT+CMQTTPUB=0,0,60");
+  if (waitFor("+CMQTTPUB: 0,0", 2000)) {
+    unsigned long totalTime = millis() - totalStart;
+    Serial.println("[MKB] Sent: " + payload + " | " + String(totalTime) + "ms");
+  } else {
+    Serial.println("[MAKUMBURA] Publish timeout — will reconnect");
+    isConnected = false;
+  }
+}
+
+// ═════════════════════════════════════════════════════════════
+// AT COMMAND SEND + WAIT HELPERS
+// ═════════════════════════════════════════════════════════════
+String sendATCommand(String command, String expected_response, int timeout) {
+  String response = "";
+  Serial2.println(command);
+  long int time = millis();
+
+  while ((time + timeout) > millis()) {
+    while (Serial2.available()) {
+      char c = Serial2.read();
+      response += c;
+    }
+    if (response.indexOf(expected_response) != -1) {
+      break;
+    }
+  }
+
+  if (!isConnected) {
+    Serial.print(">> ");
+    Serial.println(command);
+    Serial.print("<< ");
+    Serial.println(response);
+    Serial.println("------------------------");
+  }
+
+  return response;
+}
+
+bool waitFor(String expected, int timeout) {
+  String response = "";
+  long int time = millis();
+
+  while ((time + timeout) > millis()) {
+    while (Serial2.available()) {
+      response += char(Serial2.read());
+    }
+    if (response.indexOf(expected) != -1) {
+      return true;
+    }
+  }
+
+  return false;
 }

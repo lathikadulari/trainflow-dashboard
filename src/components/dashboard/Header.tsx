@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Train, Bell, LayoutDashboard, FileText, LogOut, Activity, Cpu, BarChart3, Sliders, Filter, BrainCircuit } from 'lucide-react';
+import { Train, Bell, LayoutDashboard, FileText, LogOut, Activity, Cpu, BarChart3, Sliders, Filter, BrainCircuit, Database, Sparkles, Terminal, Layers } from 'lucide-react';
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -104,16 +104,64 @@ const Header = () => {
               Noise Filter
             </Link>
             <Link
-              to="/ml-analysis"
+              to="/ai-activities"
               className={cn(
                 "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
-                location.pathname === "/ml-analysis"
+                location.pathname === "/ai-activities"
                   ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
               )}
             >
-              <BrainCircuit className="w-4 h-4" />
-              ML Analysis
+              <Sparkles className="w-4 h-4 text-indigo-400" />
+              AI Activities
+            </Link>
+            <Link
+              to="/ai-workflow"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                location.pathname === "/ai-workflow" || location.pathname === "/ai-training"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              <BrainCircuit className="w-4 h-4 text-cyan-400" />
+              AI Workflow
+            </Link>
+            <Link
+              to="/research-flow"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                location.pathname === "/research-flow" || location.pathname === "/methodology"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              <Layers className="w-4 h-4 text-amber-400" />
+              Research Pipeline
+            </Link>
+            <Link
+              to="/database"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                location.pathname === "/database"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              <Database className="w-4 h-4 text-primary" />
+              Database Explorer
+            </Link>
+            <Link
+              to="/api-endpoints"
+              className={cn(
+                "px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap",
+                location.pathname === "/api-endpoints" || location.pathname === "/api-docs"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-background/50 hover:text-foreground"
+              )}
+            >
+              <Terminal className="w-4 h-4 text-emerald-400" />
+              API Endpoints
             </Link>
           </nav>
         </div>

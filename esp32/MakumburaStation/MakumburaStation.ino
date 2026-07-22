@@ -44,7 +44,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
+#include <WiFiClient.h>
 #include <PubSubClient.h>
 #include <Adafruit_ADS1X15.h>
 
@@ -53,10 +53,10 @@ const char* WIFI_SSID     = "test";     // ← change to your WiFi name
 const char* WIFI_PASSWORD = "12345678";      // ← change to your WiFi password
 
 // ── HiveMQ Cloud MQTT (TLS port 8883) ────────────────────────────────────────
-const char* MQTT_SERVER    = "8102284b29c24b4eb40e06ac182d1130.s1.eu.hivemq.cloud";
-const int   MQTT_PORT      = 8883;
-const char* MQTT_USER      = "dulari";
-const char* MQTT_PASS      = "Dulari@123";
+const char* MQTT_SERVER    = "13.235.248.117";
+const int   MQTT_PORT      = 1883;
+const char* MQTT_USER      = "trainflow";
+const char* MQTT_PASS      = "Trainflow@2026!";
 const char* MQTT_CLIENT_ID = "ESP32_MAKUMBURA_MKB01";
 
 // HiveMQ Cloud uses a trusted CA — set to insecure for simplicity
@@ -139,8 +139,8 @@ uint32_t lastFlushTime    = 0;
 uint32_t lastSDRetryTime  = 0;
 
 // ── Globals (Core 0 owned) ────────────────────────────────────────────────────
-WiFiClientSecure secureClient;
-PubSubClient     mqttClient(secureClient);
+WiFiClient netClient;
+PubSubClient mqttClient(netClient);
 
 bool     wifiConnected = false;
 bool     mqttConnected = false;
@@ -308,9 +308,7 @@ void connectMQTT() {
   if (!wifiConnected) return;
   Serial.print("  [MAKUMBURA] MQTT connecting ... ");
 
-#if MQTT_USE_INSECURE
-  secureClient.setInsecure();   // skip CA verification (simple setup)
-#endif
+
 
   mqttClient.setServer(MQTT_SERVER, MQTT_PORT);
   mqttClient.setBufferSize(512);

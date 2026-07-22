@@ -12,7 +12,11 @@ import MakumburaRaw from "./pages/MakumburaRaw";
 import DataAnalysis from "./pages/DataAnalysis";
 import NoiseCalibration from "./pages/NoiseCalibration";
 import NoiseFilter from "./pages/NoiseFilter";
-import { MLAnalysis } from "./pages/MLAnalysis";
+import AIModelActivities from "./pages/AIModelActivities";
+import AITrainingWorkflow from "./pages/AITrainingWorkflow";
+import DatabaseViewer from "./pages/DatabaseViewer";
+import ApiEndpoints from "./pages/ApiEndpoints";
+import ResearchMethodology from "./pages/ResearchMethodology";
 import NotFound from "./pages/NotFound";
 
 import { AuthProvider } from "@/context/AuthContext";
@@ -40,7 +44,14 @@ const App = () => (
               <Route path="/analysis" element={<DataAnalysis />} />
               <Route path="/noise" element={<NoiseCalibration />} />
               <Route path="/filter" element={<NoiseFilter />} />
-              <Route path="/ml-analysis" element={<MLAnalysis />} />
+              <Route path="/ai-activities" element={<AIModelActivities />} />
+              <Route path="/ai-workflow" element={<AITrainingWorkflow />} />
+              <Route path="/ai-training" element={<AITrainingWorkflow />} />
+              <Route path="/database" element={<DatabaseViewer />} />
+              <Route path="/api-docs" element={<ApiEndpoints />} />
+              <Route path="/api-endpoints" element={<ApiEndpoints />} />
+              <Route path="/research-flow" element={<ResearchMethodology />} />
+              <Route path="/methodology" element={<ResearchMethodology />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

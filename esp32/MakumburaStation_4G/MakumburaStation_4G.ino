@@ -32,13 +32,13 @@
 #define TX_PIN 27  // ESP32 TX pin (module RX)
 
 // ── EC2 MQTT broker credentials ─────────────────────────────
-String mqtt_server = "13.239.236.121";
+String mqtt_server = "13.235.248.117";
 String mqtt_port   = "1883";
 String mqtt_user   = "trainflow";
 String mqtt_pass   = "Trainflow@2026!";
 
 const char* mqttHosts[]    = {
-  "13.239.236.121"
+  "13.235.248.117"
 };
 const int mqttHostsCount   = 1;
 const char* mqttPorts[]    = {"1883"};

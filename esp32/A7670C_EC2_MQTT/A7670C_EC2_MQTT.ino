@@ -9,7 +9,7 @@
 #define TX_PIN 27   // ESP32 TX  → A7670C RX
 
 // ── EC2 Mosquitto broker (plain TCP, port 1883) ──────────────
-const char* MQTT_HOST    = "13.239.236.121";
+const char* MQTT_HOST    = "13.235.248.117";
 const char* MQTT_PORT    = "1883";
 const char* MQTT_USER    = "trainflow";
 const char* MQTT_PASS    = "Trainflow@2026!";

@@ -7,7 +7,7 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 const topic = process.argv[2] || process.env.MQTT_SUB_TOPIC || 'trainflow/#';
 
 const options = {
-  host: process.env.MQTT_HOST || '13.126.222.21',
+  host: process.env.MQTT_HOST || '13.235.248.117',
   port: Number(process.env.MQTT_PORT || 1883),
   protocol: process.env.MQTT_PROTOCOL || 'mqtt',
   username: process.env.MQTT_USERNAME || 'trainflow',

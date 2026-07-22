@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { CartesianGrid, Line, LineChart, Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { 
   Sliders, Activity, Download, Trash2, Play, Square, 
-  RotateCcw, CheckCircle, Calendar, Sparkles, Zap, Clock 
+  RotateCcw, CheckCircle, Calendar, Sparkles, Zap, Clock,
+  ArrowRight, Layers, Filter, Cpu, ShieldCheck, BarChart3, HelpCircle, Info
 } from 'lucide-react';
 import Header from '@/components/dashboard/Header';
 import { toast } from 'sonner';
@@ -101,6 +102,437 @@ const normalizeSample = (raw: unknown): SensorSample | null => {
   };
 };
 
+// Interactive 60 FPS Canvas Video Demo Component
+const NoiseCalibrationVideoDemo = () => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const TOTAL_DURATION = 28;
+
+  useEffect(() => {
+    let animId: number;
+    let lastTime = performance.now();
+
+    const loop = (now: number) => {
+      const delta = (now - lastTime) / 1000;
+      lastTime = now;
+
+      if (isPlaying) {
+        setCurrentTime((prev) => {
+          const next = prev + delta;
+          return next >= TOTAL_DURATION ? 0 : next;
+        });
+      }
+
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          drawVideoFrame(ctx, canvas.width, canvas.height, currentTime);
+        }
+      }
+
+      animId = requestAnimationFrame(loop);
+    };
+
+    animId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(animId);
+  }, [isPlaying, currentTime]);
+
+  const drawVideoFrame = (ctx: CanvasRenderingContext2D, width: number, height: number, t: number) => {
+    ctx.fillStyle = '#030712';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < width; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    for (let y = 0; y < height; y += 40) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.fillRect(0, 0, width, 45);
+    ctx.strokeStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.moveTo(0, 45);
+    ctx.lineTo(width, 45);
+    ctx.stroke();
+
+    ctx.fillStyle = '#38bdf8';
+    ctx.font = 'bold 15px sans-serif';
+    ctx.fillText('NOISE DATA CALIBRATION — ANIMATED DEMO', 20, 28);
+
+    const timeStr = `00:${Math.floor(t).toString().padStart(2, '0')} / 00:28`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 13px monospace';
+    ctx.fillText(timeStr, width - 130, 28);
+
+    if (t < 8) {
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText('STEP 1: Stationary Sensor Installation & Baseline', 30, 85);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(40, 110, 320, 260, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText('ESP32 Accelerometer Mount', 60, 145);
+
+      ctx.fillStyle = '#10b981';
+      ctx.font = 'bold 13px sans-serif';
+      ctx.fillText('STATUS: STILL (a = 0.000g)', 60, 180);
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '13px sans-serif';
+      ctx.fillText('Captures background thermal &', 60, 220);
+      ctx.fillText('electrical jitter without motion.', 60, 240);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#334155';
+      ctx.beginPath();
+      ctx.roundRect(390, 110, 370, 260, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('Dual Axis Y/Z Ambient Waveforms', 410, 140);
+
+      ctx.strokeStyle = '#ef4444';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(410, 180);
+      ctx.lineTo(740, 180);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(410, 300);
+      ctx.lineTo(740, 300);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#ef4444';
+      ctx.font = '11px monospace';
+      ctx.fillText('+0.002g Ambient Limit', 610, 175);
+      ctx.fillText('-0.002g Ambient Limit', 610, 315);
+
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = 0; x < 330; x += 5) {
+        const y = 240 + Math.sin(x * 0.05 + t * 5) * 15 + (Math.random() - 0.5) * 4;
+        if (x === 0) ctx.moveTo(410 + x, y);
+        else ctx.lineTo(410 + x, y);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = 0; x < 330; x += 5) {
+        const y = 240 + Math.cos(x * 0.05 + t * 4) * 12 + (Math.random() - 0.5) * 4;
+        if (x === 0) ctx.moveTo(410 + x, y);
+        else ctx.lineTo(410 + x, y);
+      }
+      ctx.stroke();
+
+    } else if (t < 13) {
+      ctx.fillStyle = '#60a5fa';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText('STEP 2: High-Speed 50Hz Data Stream Sampling', 30, 85);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#60a5fa';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(40, 110, 320, 260, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#60a5fa';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.fillText('ESP32 MQTT Payload Stream', 60, 145);
+
+      ctx.fillStyle = '#a7f3d0';
+      ctx.font = 'bold 13px monospace';
+      ctx.fillText('Topic: trainflow/sensor/A', 60, 180);
+      ctx.fillText('Interval: ~20ms (50Hz)', 60, 205);
+
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText('{', 60, 240);
+      ctx.fillText(`  "y_v": ${(1.650 + Math.sin(t*10)*0.012).toFixed(3)}V,`, 60, 265);
+      ctx.fillText(`  "z_v": ${(1.650 - Math.cos(t*10)*0.009).toFixed(3)}V`, 60, 290);
+      ctx.fillText('}', 60, 315);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#334155';
+      ctx.beginPath();
+      ctx.roundRect(390, 110, 370, 260, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#60a5fa';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('Continuous 1.650V ADC Jitter Stream', 410, 140);
+
+      ctx.strokeStyle = '#818cf8';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let x = 0; x < 330; x += 5) {
+        const y = 240 + Math.sin(x * 0.08 + t * 15) * 20 + Math.cos(x * 0.2) * 8;
+        if (x === 0) ctx.moveTo(410 + x, y);
+        else ctx.lineTo(410 + x, y);
+      }
+      ctx.stroke();
+
+    } else if (t < 18) {
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText('STEP 3: Parallel Statistical Mathematics Engine', 30, 85);
+
+      const stats = [
+        { title: '1. Mean Offset (μ)', val: '0.0010 g', desc: 'Zero DC Bias', col: '#38bdf8' },
+        { title: '2. Standard Deviation (σ)', val: '0.0018 g', desc: 'Noise Floor Band', col: '#34d399' },
+        { title: '3. Peak-to-Peak (Vpp)', val: '0.0080 g', desc: 'Max Spike Span', col: '#a78bfa' },
+        { title: '4. RMS Energy', val: '0.0020 g', desc: 'Total Noise Power', col: '#fbbf24' }
+      ];
+
+      stats.forEach((s, i) => {
+        const ypos = 110 + i * 65;
+        ctx.fillStyle = '#0f172a';
+        ctx.strokeStyle = s.col;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(40, ypos, 720, 52, 8);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = s.col;
+        ctx.font = 'bold 14px sans-serif';
+        ctx.fillText(s.title, 60, ypos + 32);
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 14px monospace';
+        ctx.fillText(s.val, 400, ypos + 32);
+
+        ctx.fillStyle = s.col;
+        ctx.font = 'bold 12px sans-serif';
+        ctx.fillText(s.desc, 610, ypos + 32);
+      });
+
+    } else if (t < 23) {
+      ctx.fillStyle = '#c084fc';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText('STEP 4: Fast Fourier Transform (FFT) Spectral Analysis', 30, 85);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#c084fc';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(40, 110, 720, 260, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#c084fc';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('FFT Frequency Spectrum |X(f)|', 60, 140);
+
+      const freqs = [
+        { label: '5Hz', h: 30, col: '#38bdf8' },
+        { label: '12.5Hz (Motor)', h: 120, col: '#a78bfa' },
+        { label: '25Hz', h: 40, col: '#38bdf8' },
+        { label: '35Hz', h: 35, col: '#38bdf8' },
+        { label: '50Hz (Power Line)', h: 180, col: '#ef4444' },
+        { label: '65Hz', h: 25, col: '#38bdf8' },
+        { label: '80Hz', h: 20, col: '#38bdf8' }
+      ];
+
+      freqs.forEach((f, i) => {
+        const x = 90 + i * 95;
+        const y = 330 - f.h;
+
+        ctx.fillStyle = f.col;
+        ctx.beginPath();
+        ctx.roundRect(x, y, 40, f.h, [4, 4, 0, 0]);
+        ctx.fill();
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = '11px sans-serif';
+        ctx.fillText(f.label, x - 10, 350);
+      });
+
+    } else {
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 18px sans-serif';
+      ctx.fillText('STEP 5: Dynamic 3-Sigma Noise Gate Filter Output', 30, 85);
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(40, 110, 330, 260, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#f87171';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('1. Input Signal + Thresholds', 60, 140);
+
+      ctx.strokeStyle = '#ef4444';
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(60, 180);
+      ctx.lineTo(350, 180);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(60, 300);
+      ctx.lineTo(350, 300);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.fillStyle = '#ef4444';
+      ctx.font = '11px sans-serif';
+      ctx.fillText('+3σ Limit', 290, 175);
+      ctx.fillText('-3σ Limit', 290, 315);
+
+      ctx.strokeStyle = '#fb7185';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(60, 240);
+      ctx.lineTo(150, 240);
+      ctx.lineTo(170, 130);
+      ctx.lineTo(190, 340);
+      ctx.lineTo(210, 240);
+      ctx.lineTo(350, 240);
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(430, 110, 330, 260, 10);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#34d399';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.fillText('2. Calibrated Clean Output', 450, 140);
+
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(450, 240);
+      ctx.lineTo(740, 240);
+      ctx.stroke();
+
+      ctx.fillStyle = '#a7f3d0';
+      ctx.font = '11px sans-serif';
+      ctx.fillText('0.000g Flat Baseline', 450, 230);
+
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(450, 240);
+      ctx.lineTo(540, 240);
+      ctx.lineTo(560, 140);
+      ctx.lineTo(580, 320);
+      ctx.lineTo(600, 240);
+      ctx.lineTo(740, 240);
+      ctx.stroke();
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="relative rounded-xl overflow-hidden border border-cyan-500/30 bg-black shadow-2xl group">
+        <canvas 
+          ref={canvasRef} 
+          width={800} 
+          height={450} 
+          className="w-full h-auto aspect-video object-cover rounded-xl"
+        />
+        
+        <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent flex items-center justify-between gap-3">
+          <Button
+            size="sm"
+            onClick={() => setIsPlaying(!isPlaying)}
+            className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 shrink-0"
+          >
+            {isPlaying ? <Square className="w-4 h-4" /> : <Play className="w-4 h-4 fill-cyan-300" />}
+            <span className="ml-1.5 text-xs font-bold">{isPlaying ? 'Pause' : 'Play'}</span>
+          </Button>
+
+          <input
+            type="range"
+            min={0}
+            max={TOTAL_DURATION}
+            step={0.1}
+            value={currentTime}
+            onChange={(e) => setCurrentTime(parseFloat(e.target.value))}
+            className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+          />
+
+          <span className="text-xs font-mono text-cyan-300 shrink-0 font-bold">
+            00:{Math.floor(currentTime).toString().padStart(2, '0')} / 00:28
+          </span>
+
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setCurrentTime(0); setIsPlaying(true); }}
+            className="bg-slate-900 border-slate-700 text-xs text-slate-300 shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      </div>
+
+      <div className="p-3 rounded-xl bg-slate-950 border border-slate-800/80 text-xs text-slate-300 space-y-2">
+        <div className="font-bold text-slate-200 flex items-center justify-between">
+          <span className="flex items-center gap-1.5"><Info className="w-4 h-4 text-cyan-400" /> Interactive Scene Highlights (Click to Jump):</span>
+          <span className="text-[10px] text-cyan-400 font-mono">60 FPS Render</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-1.5">
+          {[
+            { label: '0s-8s: Baseline', time: 0 },
+            { label: '8s-13s: 50Hz Stream', time: 8 },
+            { label: '13s-18s: Math Engine', time: 13 },
+            { label: '18s-23s: FFT Spectrum', time: 18 },
+            { label: '23s-28s: 3σ Gate Filter', time: 23 }
+          ].map((sc) => (
+            <button
+              key={sc.time}
+              onClick={() => { setCurrentTime(sc.time); setIsPlaying(true); }}
+              className={`p-1.5 text-[11px] font-semibold rounded-lg border text-left transition-all ${
+                currentTime >= sc.time && currentTime < sc.time + 5
+                  ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300 font-bold'
+                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              • {sc.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const NoiseCalibration: React.FC = () => {
   const [connected, setConnected] = useState(false);
   const [esp32Status, setEsp32Status] = useState<'online' | 'offline'>('offline');
@@ -121,6 +553,10 @@ const NoiseCalibration: React.FC = () => {
   const [profiles, setProfiles] = useState<NoiseProfile[]>([]);
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [calibSaving, setCalibSaving] = useState(false);
+
+  // Diagram view state
+  const [diagramTab, setDiagramTab] = useState<'pipeline' | 'gaussian' | 'signal'>('pipeline');
+  const [activeStep, setActiveStep] = useState<number>(1);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const calibrationTimerRef = useRef<number | null>(null);
@@ -348,6 +784,130 @@ const NoiseCalibration: React.FC = () => {
             </Badge>
           </div>
         </div>
+
+        {/* Single-Page Unified Noise Calibration Process Guide & Demo Video */}
+        <Card className="bg-slate-900/90 border-cyan-500/30 backdrop-blur-md overflow-hidden shadow-2xl">
+          <CardHeader className="border-b border-slate-800/80 bg-slate-950/60 pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+                <Play className="w-5 h-5 fill-cyan-400 text-cyan-400" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold text-slate-100 flex items-center gap-2">
+                  Noise Calibration Visual Guide & Demo Video
+                </CardTitle>
+                <p className="text-xs text-slate-400">Everything you need to understand baseline noise profiling and filter thresholds in one simple view</p>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+              
+              {/* LEFT COLUMN: 60 FPS Canvas Video Demo Player */}
+              <div className="lg:col-span-6 space-y-3">
+                <div className="flex items-center justify-between text-xs font-semibold text-cyan-400">
+                  <span className="flex items-center gap-1.5"><Sparkles className="w-4 h-4 text-cyan-400" /> 1080p Animated Process Demo Video</span>
+                  <span className="text-[10px] bg-cyan-500/10 text-cyan-300 px-2 py-0.5 rounded border border-cyan-500/30 font-mono">Interactive Render</span>
+                </div>
+
+                <NoiseCalibrationVideoDemo />
+              </div>
+
+              {/* RIGHT COLUMN: All-in-One Visual Process Flow Diagram */}
+              <div className="lg:col-span-6 space-y-3">
+                <div className="flex items-center justify-between text-xs font-semibold text-emerald-400">
+                  <span className="flex items-center gap-1.5"><Layers className="w-4 h-4 text-emerald-400" /> All-in-One Calibration Signal Pipeline</span>
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded border border-emerald-500/30 font-mono">End-to-End Diagram</span>
+                </div>
+
+                <div className="bg-slate-950 p-4 rounded-xl border border-slate-800/90 shadow-xl">
+                  <svg viewBox="0 0 550 420" className="w-full h-auto">
+                    {/* STEP 1: Idle Setup */}
+                    <g transform="translate(10, 10)">
+                      <rect x="0" y="0" width="530" height="65" fill="#0f172a" rx="8" stroke="#38bdf8" strokeWidth="1.5" />
+                      <circle cx="25" cy="32" r="12" fill="#0284c7" />
+                      <text x="25" y="36" fill="#ffffff" fontSize="11" textAnchor="middle" fontWeight="bold">1</text>
+                      <text x="48" y="26" fill="#38bdf8" fontSize="11" fontWeight="bold">1. Stationary Physical Sensor Setup</text>
+                      <text x="48" y="44" fill="#cbd5e1" fontSize="9">Sensor resting still on track mount (a = 0.000g). Captures thermal noise (±0.002g).</text>
+                      
+                      {/* Mini wave */}
+                      <path d="M 430,32 Q 450,22 470,32 T 510,32" fill="none" stroke="#38bdf8" strokeWidth="2" />
+                    </g>
+
+                    {/* Arrow 1 */}
+                    <path d="M 275,75 L 275,90" stroke="#38bdf8" strokeWidth="2" strokeDasharray="3 3" />
+                    <polygon points="271,88 275,98 279,88" fill="#38bdf8" />
+
+                    {/* STEP 2: 50Hz Stream Sampling */}
+                    <g transform="translate(10, 95)">
+                      <rect x="0" y="0" width="530" height="65" fill="#0f172a" rx="8" stroke="#60a5fa" strokeWidth="1.5" />
+                      <circle cx="25" cy="32" r="12" fill="#2563eb" />
+                      <text x="25" y="36" fill="#ffffff" fontSize="11" textAnchor="middle" fontWeight="bold">2</text>
+                      <text x="48" y="26" fill="#60a5fa" fontSize="11" fontWeight="bold">2. High-Speed 50Hz Data Stream</text>
+                      <text x="48" y="44" fill="#cbd5e1" fontSize="9">ESP32 ADC voltage payload stream (1.650V reference) normalized to g-force.</text>
+                      
+                      {/* Mini wave */}
+                      <path d="M 430,32 L 450,20 L 470,44 L 490,24 L 510,32" fill="none" stroke="#60a5fa" strokeWidth="2" />
+                    </g>
+
+                    {/* Arrow 2 */}
+                    <path d="M 275,160 L 275,175" stroke="#60a5fa" strokeWidth="2" strokeDasharray="3 3" />
+                    <polygon points="271,173 275,183 279,173" fill="#60a5fa" />
+
+                    {/* STEP 3: Statistical Math Engine */}
+                    <g transform="translate(10, 180)">
+                      <rect x="0" y="0" width="530" height="65" fill="#0f172a" rx="8" stroke="#34d399" strokeWidth="1.5" />
+                      <circle cx="25" cy="32" r="12" fill="#059669" />
+                      <text x="25" y="36" fill="#ffffff" fontSize="11" textAnchor="middle" fontWeight="bold">3</text>
+                      <text x="48" y="26" fill="#34d399" fontSize="11" fontWeight="bold">3. Statistical Mathematics Engine (μ, σ, Vpp, RMS)</text>
+                      <text x="48" y="44" fill="#cbd5e1" fontSize="9">Calculates Mean offset (μ = 0.001g) & Noise Floor Standard Deviation (σ = 0.0018g).</text>
+                      
+                      {/* Math Chip */}
+                      <rect x="430" y="18" width="85" height="28" fill="#064e3b" rx="4" stroke="#34d399" strokeWidth="1" />
+                      <text x="472" y="35" fill="#a7f3d0" fontSize="9" textAnchor="middle" fontWeight="bold">μ & σ Profiling</text>
+                    </g>
+
+                    {/* Arrow 3 */}
+                    <path d="M 275,245 L 275,260" stroke="#34d399" strokeWidth="2" strokeDasharray="3 3" />
+                    <polygon points="271,258 275,268 279,258" fill="#34d399" />
+
+                    {/* STEP 4: FFT Spectral Analysis */}
+                    <g transform="translate(10, 265)">
+                      <rect x="0" y="0" width="530" height="65" fill="#0f172a" rx="8" stroke="#c084fc" strokeWidth="1.5" />
+                      <circle cx="25" cy="32" r="12" fill="#7c3aed" />
+                      <text x="25" y="36" fill="#ffffff" fontSize="11" textAnchor="middle" fontWeight="bold">4</text>
+                      <text x="48" y="26" fill="#c084fc" fontSize="11" fontWeight="bold">4. Spectral FFT Analysis (Time → Frequency)</text>
+                      <text x="48" y="44" fill="#cbd5e1" fontSize="9">Fast Fourier Transform isolates 50Hz power line hum & 12.5Hz motor noise peaks.</text>
+                      
+                      {/* Mini Bars */}
+                      <rect x="440" y="25" width="8" height="20" fill="#a78bfa" />
+                      <rect x="465" y="15" width="10" height="30" fill="#ef4444" />
+                      <rect x="490" y="30" width="8" height="15" fill="#a78bfa" />
+                    </g>
+
+                    {/* Arrow 4 */}
+                    <path d="M 275,330 L 275,345" stroke="#c084fc" strokeWidth="2" strokeDasharray="3 3" />
+                    <polygon points="271,343 275,353 279,343" fill="#c084fc" />
+
+                    {/* STEP 5: Dynamic 3-Sigma Noise Gate Output */}
+                    <g transform="translate(10, 350)">
+                      <rect x="0" y="0" width="530" height="65" fill="#064e3b" rx="8" stroke="#34d399" strokeWidth="2" />
+                      <circle cx="25" cy="32" r="12" fill="#10b981" />
+                      <text x="25" y="36" fill="#ffffff" fontSize="11" textAnchor="middle" fontWeight="bold">5</text>
+                      <text x="48" y="26" fill="#a7f3d0" fontSize="11" fontWeight="bold">5. Dynamic 3-Sigma Noise Gate Filter Output</text>
+                      <text x="48" y="44" fill="#ecfdf5" fontSize="9">Noise floor within ±3σ clamped to 0.00g; authentic train passage impulses isolated!</text>
+                      
+                      {/* Clean wave */}
+                      <path d="M 430,42 L 460,42 L 470,18 L 480,52 L 490,42 L 510,42" fill="none" stroke="#34d399" strokeWidth="2.5" />
+                    </g>
+                  </svg>
+                </div>
+              </div>
+
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Main Workspace */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

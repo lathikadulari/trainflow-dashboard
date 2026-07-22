@@ -12,7 +12,7 @@
 const { MongoClient } = require('mongodb');
 
 // ── Configuration ──────────────────────────────────────
-const REMOTE_URI = 'mongodb://16.176.209.82:27017/trainflow';
+const REMOTE_URI = 'mongodb://13.201.26.123:27017/trainflow';
 const LOCAL_URI  = 'mongodb://localhost:27017/trainflow';
 
 // Time range in IST: 7:44 AM - 7:55 AM on June 23, 2026
@@ -31,7 +31,7 @@ async function main() {
 
     try {
         // ── Step 1: Connect to remote MongoDB ──────────────
-        console.log('Connecting to remote MongoDB at 13.239.236.121...');
+        console.log('Connecting to remote MongoDB at 13.235.248.117...');
         remoteClient = new MongoClient(REMOTE_URI, {
             connectTimeoutMS: 10000,
             serverSelectionTimeoutMS: 10000,

@@ -1,7 +1,7 @@
 const { MongoClient } = require('mongodb');
 
 const LOCAL_URI = 'mongodb://localhost:27017/trainflow';
-const REMOTE_URI = 'mongodb://16.176.209.82:27017/trainflow';
+const REMOTE_URI = 'mongodb://13.201.26.123:27017/trainflow';
 
 // Time frame in IST: 15:05:46.387 to 15:08:42.000 on June 23, 2026
 // IST is UTC + 5:30.

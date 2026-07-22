@@ -17,7 +17,7 @@
         },
         {
           "Id": "EC2Origin",
-          "DomainName": "13.233.186.145",
+          "DomainName": "13.201.26.123",
           "CustomOriginConfig": {
             "HTTPPort": 80,
             "HTTPSPort": 443,
