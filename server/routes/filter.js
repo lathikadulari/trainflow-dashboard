@@ -369,13 +369,29 @@ function computeMetrics(rawData, filteredData, axis) {
     const rawMean = mean(rawVals);
     const filtMean = mean(filtVals);
 
-    // Noise estimation: difference between raw and filtered
-    const noiseVals = rawVals.map((v, i) => v - filtVals[i]);
-    const noiseRms = rms(noiseVals);
+    // Subtract DC offset to get AC component for vibration-specific SNR
+    const acRawVals = rawVals.map(v => v - rawMean);
+    const acFiltVals = filtVals.map(v => v - filtMean);
+    const acFiltRms = rms(acFiltVals);
 
-    // SNR = 20 * log10(signalRMS / noiseRMS)
-    const snrBefore = noiseRms > 0 ? 20 * Math.log10(rawRms / noiseRms) : Infinity;
-    const snrAfter = noiseRms > 0 ? 20 * Math.log10(filtRms / noiseRms) : Infinity;
+    // Estimates the noise floor RMS by finding the quietest window in the signal
+    const estimateNoiseFloor = (vals, windowSize = 50) => {
+        if (vals.length < windowSize) return rms(vals);
+        let minRms = Infinity;
+        for (let i = 0; i <= vals.length - windowSize; i += windowSize) {
+            const window = vals.slice(i, i + windowSize);
+            const r = rms(window);
+            if (r < minRms) minRms = r;
+        }
+        return minRms === Infinity ? rms(vals) : minRms;
+    };
+
+    const noiseRmsBefore = estimateNoiseFloor(acRawVals);
+    const noiseRmsAfter = estimateNoiseFloor(acFiltVals);
+
+    // Calculate SNR based on the AC signal estimate (acFiltRms) relative to the AC noise floor
+    const snrBefore = noiseRmsBefore > 0 ? 20 * Math.log10(acFiltRms / noiseRmsBefore) : Infinity;
+    const snrAfter = noiseRmsAfter > 0 ? 20 * Math.log10(acFiltRms / noiseRmsAfter) : Infinity;
 
     const noiseRemoved = rawEnergy > 0
         ? ((rawEnergy - filtEnergy) / rawEnergy * 100)
