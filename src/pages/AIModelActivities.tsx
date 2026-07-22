@@ -50,6 +50,8 @@ import {
   Cell
 } from 'recharts';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 interface AIModel {
   id: string;
   name: string;
@@ -473,7 +475,7 @@ export const AIModelActivities: React.FC = () => {
   const fetchActivities = async () => {
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:5000/api/ml/activities');
+      const res = await fetch(`${API_URL}/ml/activities`);
       if (res.ok) {
         const data = await res.json();
         if (data.success && data.activities.length > 0) {
@@ -528,7 +530,7 @@ export const AIModelActivities: React.FC = () => {
   const handleRunSimulation = async (meanE: number, slopeE: number) => {
     setSimulating(true);
     try {
-      const res = await fetch('http://localhost:5000/api/ml/simulate-inference', {
+      const res = await fetch(`${API_URL}/ml/simulate-inference`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ meanEnergy: meanE, energySlope: slopeE, sensorId: 'sensor2' })
@@ -573,7 +575,7 @@ export const AIModelActivities: React.FC = () => {
     setIsTraining(true);
     setTrainStatusMsg('Training Logistic Regression Model on envelope dataset...');
     try {
-      const res = await fetch('http://localhost:5000/api/ml/train', {
+      const res = await fetch(`${API_URL}/ml/train`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sensorId: 'sensor2' })
@@ -595,7 +597,7 @@ export const AIModelActivities: React.FC = () => {
     setIsTraining(true);
     setTrainStatusMsg('Generating energy envelope dataset from Makumbura train events...');
     try {
-      const res = await fetch('http://localhost:5000/api/ml/generate', {
+      const res = await fetch(`${API_URL}/ml/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sensorId: 'sensor2' })
